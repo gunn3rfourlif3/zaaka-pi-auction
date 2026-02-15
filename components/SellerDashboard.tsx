@@ -1,55 +1,74 @@
-import { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
-interface SoldItem {
+interface AuctionItem {
   id: number;
   title: string;
-  current_bid: number;
-  status: 'COMPLETED' | 'CLOSED' | 'SETTLED_TO_SELLER';
-  end_time: string;
+  seller_id: string;
+  status: string;
+  created_at: string;
 }
 
-export default function SellerDashboard({ sellerId }: { sellerId: string }) {
-  const [items, setItems] = useState<SoldItem[]>([]);
+const SellerDashboard = () => {
+  const [items, setItems] = useState<AuctionItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch items belonging to this seller
+  // Using the ID from your database row
+  const sellerId = "pioneer_123"; 
+
   useEffect(() => {
-    fetch(`/api/seller/items?sellerId=${sellerId}`)
-      .then(res => res.json())
-      .then(data => setItems(data));
+    const fetchItems = async () => {
+      try {
+        const response = await fetch(`/api/seller/items?sellerId=${sellerId}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.details || data.error || 'Failed to fetch');
+        }
+
+        setItems(data);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchItems();
   }, [sellerId]);
 
-  return (
-    <div className="p-6 max-w-5xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6 text-pi-purple">🏪 Seller Studio</h2>
-      
-      <div className="space-y-4">
-        {items.map((item) => (
-          <div key={item.id} className="border p-5 rounded-2xl bg-white shadow-sm flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-bold">{item.title}</h3>
-              <p className="text-xl text-purple-700 font-mono">{item.current_bid} Pi</p>
-            </div>
+  if (loading) return <div className="p-8">Loading your auctions...</div>;
+  if (error) return <div className="p-8 text-red-500">Error: {error}</div>;
 
-            <div className="text-right">
-              {item.status === 'COMPLETED' && (
-                <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
-                  ⏳ Waiting for Payment Settlement
+  return (
+    <div className="p-8 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Seller Dashboard</h1>
+      
+      <div className="grid gap-4">
+        {items.length === 0 ? (
+          <p className="text-gray-500">No auction items found.</p>
+        ) : (
+          items.map((item) => (
+            <div key={item.id} className="border p-4 rounded-lg shadow-sm bg-white flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-semibold">{item.title}</h2>
+                <p className="text-sm text-gray-500">ID: #{item.id}</p>
+                <p className="text-sm text-gray-400">Created: {new Date(item.created_at).toLocaleDateString()}</p>
+              </div>
+              
+              <div className="text-right">
+                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                  item.status === 'SETTLED_TO_SELLER' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {item.status}
                 </span>
-              )}
-              {item.status === 'CLOSED' && (
-                <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm font-medium">
-                  📦 Pi Held in Escrow (Ship Item Now)
-                </span>
-              )}
-              {item.status === 'SETTLED_TO_SELLER' && (
-                <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
-                  💰 Paid to Wallet
-                </span>
-              )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );
-}
+};
+
+export default SellerDashboard;

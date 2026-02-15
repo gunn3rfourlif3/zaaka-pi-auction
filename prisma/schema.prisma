@@ -1,71 +1,38 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
-  output          = "../node_modules/.prisma/client"
+  provider      = "prisma-client-js"
+  engineType    = "binary"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
+  url = env("DATABASE_URL")
+  // Keep this line empty for Prisma 7 compliance
 }
 
-model users {
-  uid               String          @id @db.VarChar(255)
-  username          String          @unique @db.VarChar(50)
-  kyc_status        Boolean?        @default(false)
-  zaaka_trust_score Int?            @default(100)
-  created_at        DateTime?       @default(now()) @db.Timestamp(6)
-  auctions          auctions[]
-  bids              bids[]
-  escrow_ledger     escrow_ledger[]
-}
+// ... your models below
+
+
 
 model auctions {
   id            Int             @id @default(autoincrement())
-  seller_id     String?         @db.VarChar(255)
   title         String          @db.VarChar(255)
-  description   String?
-  start_price   Decimal         @db.Decimal(15, 2)
-  current_bid   Decimal?        @default(0.00) @db.Decimal(15, 2)
-  end_time      DateTime        @db.Timestamp(6)
-  status        String?         @default("ACTIVE") @db.VarChar(20)
-  created_at    DateTime?       @default(now()) @db.Timestamp(6)
-  users         users?          @relation(fields: [seller_id], references: [uid], onDelete: NoAction, onUpdate: NoAction)
-  bids          bids[]
+  seller_id     String          @db.VarChar(255)
+  status        String?         @default("OPEN") @db.VarChar(50)
+  created_at    DateTime        @default(now()) @db.Timestamp(0)
   escrow_ledger escrow_ledger[]
-}
-
-model bids {
-  id            Int       @id @default(autoincrement())
-  auction_id    Int?
-  bidder_id     String?   @db.VarChar(255)
-  amount        Decimal   @db.Decimal(15, 2)
-  pi_payment_id String?   @unique @db.VarChar(255)
-  status        String?   @default("PENDING") @db.VarChar(20)
-  created_at    DateTime? @default(now()) @db.Timestamp(6)
-  auctions      auctions? @relation(fields: [auction_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  users         users?    @relation(fields: [bidder_id], references: [uid], onDelete: NoAction, onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model escrow_ledger {
   id             Int      @id @default(autoincrement())
-  amount         Decimal  @db.Decimal(15, 2)
-  payment_status String   @default("HELD") // 👈 IS THIS LINE PRESENT?
-  pi_txid        String?
-  auction_id     Int      @unique
-  winner_id      String
-  seller_id      String
+  amount         Decimal  @db.Decimal(10, 2)
+  payment_status String   @db.VarChar(50)
+  payout_status  String?  @default("PENDING") @db.VarChar(50)
+  pi_payment_id  String?  @db.VarChar(255)
+  auction_id     Int
+  winner_id      String   @db.VarChar(255)
+  seller_id      String   @db.VarChar(255)
+  auctions       auctions @relation(fields: [auction_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "escrow_ledger_ibfk_1")
 
-  auctions       auctions @relation(fields: [auction_id], references: [id])
-  users          users    @relation(fields: [winner_id], references: [uid])
-}
-
-
-/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
-model spatial_ref_sys {
-  srid      Int     @id
-  auth_name String? @db.VarChar(256)
-  auth_srid Int?
-  srtext    String? @db.VarChar(2048)
-  proj4text String? @db.VarChar(2048)
+  @@index([auction_id], map: "auction_id")
 }
