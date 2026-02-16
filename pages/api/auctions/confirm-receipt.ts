@@ -1,43 +1,36 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { confirmDeliveryAndPayout } from '../../../services/payout_service';
+import { prisma } from "../../../lib/prisma";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // 1. Only allow POST requests
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
 
-  const { auctionId, buyerId } = req.body;
-
-  // 2. Validate input
-  if (!auctionId || !buyerId) {
-    return res.status(400).json({ error: 'Missing auctionId or buyerId' });
-  }
+  const { auctionId } = req.body;
 
   try {
-    console.log(`📩 RECEIVED PAYOUT REQUEST: Auction ID: ${auctionId}, Buyer: ${buyerId}`);
+    // START TRANSACTION: If any step fails, the whole thing rolls back
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Locate the payment in the ledger
+      const ledger = await tx.escrow_ledger.findFirst({
+        where: { auction_id: Number(auctionId), payment_status: 'COMPLETED' }
+      });
 
-    // 3. Call the Payout Service
-    const result = await confirmDeliveryAndPayout(Number(auctionId), String(buyerId));
+      if (!ledger) throw new Error("Rollback: No payment record found for this auction.");
 
-    // 4. Return success
-    return res.status(200).json({
-      success: true,
-      message: 'Payout completed successfully',
-      txid: result.txid
+      // 2. Update Auction Status
+      await tx.auctions.update({
+        where: { id: Number(auctionId) },
+        data: { status: 'PAID_OUT' }
+      });
+
+      // 3. Update Ledger Payout Status
+      return await tx.escrow_ledger.update({
+        where: { id: ledger.id },
+        data: { payout_status: 'SUCCESS' }
+      });
     });
 
+    return res.status(200).json({ success: true, data: result });
   } catch (error: any) {
-    console.error("❌ API ERROR:", error.message);
-
-    // 5. Detailed error handling for the frontend
-    if (error.message.includes('No escrow record')) {
-      return res.status(404).json({ error: error.message });
-    }
-
-    return res.status(500).json({ 
-      error: 'Internal Server Error during payout',
-      details: error.message 
-    });
+    return res.status(500).json({ success: false, error: error.message });
   }
 }
