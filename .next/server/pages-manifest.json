@@ -4,5 +4,7 @@
   "/_document": "pages/_document.js",
   "/": "pages/index.js",
   "/api/auctions/live": "pages/api/auctions/live.js",
-  "/api/seller/items": "pages/api/seller/items.js"
+  "/api/auctions/bid-check": "pages/api/auctions/bid-check.js",
+  "/api/payments/approve": "pages/api/payments/approve.js",
+  "/api/payments/complete": "pages/api/payments/complete.js"
 }

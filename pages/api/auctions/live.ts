@@ -9,8 +9,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       where: { status: 'OPEN' },
       orderBy: { created_at: 'desc' },
     });
-    return res.status(200).json(liveAuctions);
+
+    // Transform Decimal objects to Numbers to prevent "NaN" in the UI
+    const sanitizedAuctions = liveAuctions.map((auction: any) => ({
+      ...auction,
+      // Prisma Decimals require conversion to String then Number
+      currentBid: auction.currentBid ? Number(auction.currentBid.toString()) : 0,
+      startingBid: auction.startingBid ? Number(auction.startingBid.toString()) : 0,
+    }));
+
+    return res.status(200).json(sanitizedAuctions);
   } catch (error: any) {
+    console.error("Fetch Error:", error);
     return res.status(500).json({ error: "DB Error", details: error.message });
   }
 }

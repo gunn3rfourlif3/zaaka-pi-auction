@@ -1,9 +1,21 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
-  // This allows the Pi Browser tunnel to communicate with your local server
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self' https://sandbox.minepi.com https://app-cdn.minepi.com;" },
+        ],
+      },
+    ];
+  },
+  // Ensure your experimental settings don't block ngrok
   experimental: {
-    allowedDevOrigins: ["nondefinitely-fibrinogenic-talitha.ngrok-free.dev"],
+    serverActions: {
+      allowedOrigins: ["nondefinitely-fibrinogenic-talitha.ngrok-free.dev"],
+    },
   },
 };
 
