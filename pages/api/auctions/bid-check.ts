@@ -17,11 +17,16 @@ try {
 const numericId = parseInt(auctionId.toString());
 
 const auction = await prisma.auctions.findUnique({
-  where: { id: numericId },
+  where: { id: auctionId },
 });
 
 if (!auction) {
   return res.status(404).json({ error: "Auction not found." });
+}
+if (auction.seller_id === username.replace('@', '')) {
+  return res.status(403).json({ 
+    error: "You cannot bid on your own auction." 
+  });
 }
 
 if (auction.status !== 'OPEN') {

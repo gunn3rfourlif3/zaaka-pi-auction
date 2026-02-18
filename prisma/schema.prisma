@@ -1,25 +1,48 @@
 generator client {
-  provider      = "prisma-client-js"
-  engineType    = "binary"
+  provider   = "prisma-client-js"
+  engineType = "binary"
 }
 
 datasource db {
   provider = "mysql"
-  url = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
   // Keep this line empty for Prisma 7 compliance
 }
 
 // ... your models below
 
-
-
 model auctions {
-  id            Int             @id @default(autoincrement())
-  title         String          @db.VarChar(255)
-  seller_id     String          @db.VarChar(255)
-  status        String?         @default("OPEN") @db.VarChar(50)
-  created_at    DateTime        @default(now()) @db.Timestamp(0)
+  id          Int      @id @default(autoincrement())
+  title       String   @db.VarChar(255)
+  description String?  @db.Text // Add this
+  currentBid  Decimal  @default(0.00) @db.Decimal(10, 2) // Add this
+  seller_id   String   @db.VarChar(255)
+  status      String?  @default("OPEN") @db.VarChar(50)
+  created_at  DateTime @default(now()) @db.Timestamp(0)
+  expires_at  DateTime
+  starts_at   DateTime @default(now())
+
   escrow_ledger escrow_ledger[]
+  images        auction_images[]
+  bids          bids[]
+}
+
+model auction_images {
+  id        Int    @id @default(autoincrement())
+  url       String @db.Text
+  auctionId Int
+
+  // Linking back to the auction
+  auction auctions @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+}
+
+model bids {
+  id         Int      @id @default(autoincrement())
+  amount     Decimal  @db.Decimal(10, 2)
+  bidder_id  String
+  auctionId  Int
+  auction    auctions @relation(fields: [auctionId], references: [id])
+  created_at DateTime @default(now())
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

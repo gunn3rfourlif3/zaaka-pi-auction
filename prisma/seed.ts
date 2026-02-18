@@ -2,45 +2,55 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  const items = [
+  const myUsername = "gunn3rfourl1f3"; // Exact string from Pi SDK
+
+  const inventoryItems = [
     {
-      title: "Premium Pi Pioneer Hoodie",
-      description: "Limited edition heavy cotton hoodie with embroidered Pi logo.",
-      imageUrl: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?auto=format&fit=crop&w=800",
-      startingBid: 20.0,
-      currentBid: 24.5,
-      sellerId: "zaaka_official",
-      endsAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 3), // 3 days from now
+      title: "Rare Black Opal Ring",
+      description: "Natural black opal set in 18k white gold.",
+      price: 120.50,
+      imgs: [
+        "https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=800",
+        "https://images.unsplash.com/photo-1603561591411-071c4f713932?w=800",
+        "https://images.unsplash.com/photo-1635767791022-343af745d28a?w=800"
+      ]
     },
     {
-      title: "Refurbished DSLR Camera Kit",
-      description: "Professional grade photography kit for creative pioneers.",
-      imageUrl: "https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=800",
-      startingBid: 15.0,
-      currentBid: 24.5,
-      sellerId: "zaaka_official",
-      endsAt: new Date(Date.now() + 1000 * 60 * 60 * 12), // 12 hours from now
+      title: "1996 Bulls Jersey",
+      description: "Hand-signed by the 1996 championship team.",
+      price: 2500.00,
+      imgs: [
+        "https://images.unsplash.com/photo-1515523110800-9415d13b84a8?w=800",
+        "https://images.unsplash.com/photo-1546510806-a9466716a23b?w=800",
+        "https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?w=800"
+      ]
     },
     {
-      title: "Vintage Pi Coin Physical Edition",
-      description: "Rare commemorative physical coin with gold plating.",
-      imageUrl: "https://images.unsplash.com/photo-1621416894569-0f39ed31d247?auto=format&fit=crop&w=800",
-      startingBid: 50.0,
-      currentBid: 50.0,
-      sellerId: "zaaka_official",
-      endsAt: new Date(Date.now() + 1000 * 60 * 60 * 48), 
+      title: "MacBook Pro M3",
+      description: "Brand new, sealed 14-inch model.",
+      price: 1450.00,
+      imgs: [
+        "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800",
+        "https://images.unsplash.com/photo-1611186871348-b1ec696e5237?w=800",
+        "https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=800"
+      ]
     }
   ];
 
-  console.log("Emptying database...");
-  await prisma.auction.deleteMany();
-
-  console.log("Seeding SoccerBids items...");
-  for (const item of items) {
-    await prisma.auction.create({ data: item });
+  for (const item of inventoryItems) {
+    await prisma.auctions.create({
+      data: {
+        title: item.title,
+        description: item.description,
+        currentBid: item.price,
+        seller_id: myUsername,
+        status: "OPEN",
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Expires in 7 days
+        images: { create: item.imgs.map(url => ({ url })) }
+      }
+    });
   }
+  console.log('✅ Inventory seeded for gunn3rfourl1f3');
 }
 
-main()
-  .catch((e) => console.error(e))
-  .finally(async () => await prisma.$disconnect());
+main().catch(console.error).finally(() => prisma.$disconnect());

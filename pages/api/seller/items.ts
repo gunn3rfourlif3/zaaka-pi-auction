@@ -10,20 +10,18 @@ export default async function handler(req, res) {
   try {
     const items = await prisma.auctions.findMany({
       where: {
-        // This matches your schema exactly
         seller_id: String(sellerId), 
+        status: "OPEN" // 🟢 Add this to hide cancelled/closed items
       },
-      select: {
-        id: true,
-        title: true,
-        seller_id: true,
-        status: true,
-        created_at: true,
-        // We EXCLUDE description/current_bid because they aren't in your schema
-      },
-      orderBy: {
-        created_at: 'desc'
-      }
+      // Instead of 'select', we use 'include' for the relationship
+      // and let Prisma return all other top-level fields automatically
+      include: {
+    images: true,
+    // 🟢 ADD THIS BLOCK HERE:
+    _count: {
+      select: { bids: true } 
+    }
+  },
     });
 
     return res.status(200).json(items);
