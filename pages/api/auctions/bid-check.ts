@@ -1,59 +1,58 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { prisma } from "../../../lib/prisma";
+import { NextApiRequest, NextApiResponse } from 'next';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-if (req.method !== 'POST') {
-return res.status(405).json({ message: 'Method Not Allowed' });
-}
+  // 1. Only allow POST
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-const { auctionId, bidAmount, userUid } = req.body;
+  try {
+    const { auctionId, bidAmount } = req.body;
 
-if (!auctionId || !bidAmount || !userUid) {
-return res.status(400).json({ error: "Missing required bid data." });
-}
+    // 2. Validate input existence
+    if (!auctionId || !bidAmount) {
+      return res.status(400).json({ error: 'Missing auctionId or bidAmount' });
+    }
 
-try {
-// FIX: Ensure auctionId is an Integer if your DB uses Int IDs
-const numericId = parseInt(auctionId.toString());
+    // 3. Find auction in DB
+    const auction = await prisma.auctions.findUnique({
+      where: { id: Number(auctionId) },
+    });
 
-const auction = await prisma.auctions.findUnique({
-  where: { id: auctionId },
-});
+    if (!auction) {
+      return res.status(404).json({ error: 'Auction not found' });
+    }
 
-if (!auction) {
-  return res.status(404).json({ error: "Auction not found." });
-}
-if (auction.seller_id === username.replace('@', '')) {
-  return res.status(403).json({ 
-    error: "You cannot bid on your own auction." 
-  });
-}
+    // 4. Logic Checks
+    if (auction.status === 'CANCELLED') {
+      return res.status(400).json({ error: 'This auction has been cancelled.' });
+    }
 
-if (auction.status !== 'OPEN') {
-  return res.status(400).json({ error: "Auction is closed." });
-}
+    const now = new Date();
+    if (new Date(auction.expires_at) < now) {
+      return res.status(400).json({ error: 'Auction has expired.' });
+    }
 
-if (userUid === auction.highBidderId) {
-  return res.status(400).json({ error: "You are already the high bidder!" });
-}
+    // 5. Bid Amount Check
+    const currentPrice = Number(auction.currentBid);
+    const newBid = parseFloat(bidAmount);
 
-// FIX: Safer Decimal to Number conversion**
-const currentPrice = auction.currentBid ? Number(auction.currentBid) : 0;
-const proposedBid = parseFloat(bidAmount);
+    if (newBid <= currentPrice) {
+      return res.status(400).json({ 
+        error: `Bid too low. Minimum bid is ${(currentPrice + 0.01).toFixed(2)} π` 
+      });
+    }
 
-if (proposedBid <= currentPrice) {
-  return res.status(400).json({ 
-    error: "Bid too low. Current price is " + currentPrice.toFixed(2) + " π" 
-  });
-}
+    // 6. All clear
+    return res.status(200).json({ success: true });
 
-return res.status(200).json({ valid: true });
-} catch (error: any) {
-// This will show up in your TERMINAL (not browser console)
-console.error("DATABASE CRASH:", error);
-return res.status(500).json({
-error: "Database connection error",
-details: error.message
-});
-}
+  } catch (error: any) {
+    // This logs the actual error to your VS Code terminal
+    console.error('--- DATABASE CRASH LOG ---');
+    console.error(error.message);
+    return res.status(500).json({ error: 'Internal Server Error', details: error.message });
+  }
 }

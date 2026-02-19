@@ -203,20 +203,35 @@ const fetchItems = useCallback(async () => {
           });
           return res.ok;
         },
-        onReadyForServerCompletion: async (paymentId: string, txid: string) => {
-          const res = await fetch('/api/payments/complete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ paymentId, txid })
-          });
-          if (res.ok) {
-            alert("Bid placed!");
-            setIsBidModalOpen(false);
-            setSelectedItem(null);
-            setView('market');
-            fetchItems();
-          }
-        },
+onReadyForServerCompletion: async (paymentId: string, txid: string) => {
+// 1. Fire and forget the server completion
+fetch('/api/payments/complete', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ paymentId, txid })
+});
+
+// 2. Immediate UI Update
+const newBidValue = parseFloat(bidAmount);
+
+// Update the view state manually so the price changes right now
+if (selectedItem) {
+setSelectedItem((prev: any) => ({
+...prev,
+currentBid: newBidValue
+}));
+}
+
+// 3. Close everything immediately
+setIsPaying(false);
+setIsBidModalOpen(false);
+setBidAmount('');
+
+// 4. Refresh the big list in the background (no 'await' here)
+fetchItems();
+
+alert("Bid successful!");
+},
         onCancel: () => setIsPaying(false),
         onError: (err: Error) => { alert(err.message); setIsPaying(false); }
       });
@@ -522,6 +537,7 @@ const fetchItems = useCallback(async () => {
               <h2 className="text-3xl font-black italic uppercase tracking-tighter mb-2">{selectedItem.title}</h2>
               <p className="text-gray-500 leading-relaxed mb-8 text-sm">{selectedItem.description || "No description provided."}</p>
               <div className="bg-white p-6 rounded-[32px] border border-gray-50 shadow-sm">
+                <div>
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
             {user?.username?.replace('@', '') === selectedItem.seller_id ? "Total Bids" : "Highest Bid"}
           </p>
@@ -529,25 +545,11 @@ const fetchItems = useCallback(async () => {
             {user?.username?.replace('@', '') === selectedItem.seller_id 
               ? (selectedItem._count?.bids || 0) 
               : `${Number(selectedItem.currentBid).toFixed(2)} π`}
-          </p>
-        </div>
-              
-              <div className="flex justify-between items-center mb-10 bg-white p-6 rounded-[32px] border border-gray-50 shadow-sm">
-                 <div>
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Highest Bid</p>
-                    <p className="text-3xl font-black text-green-500 italic">{Number(selectedItem.currentBid).toFixed(2)} π</p>
-                 </div>
-           <div className="bg-white p-6 rounded-[32px] border border-gray-50 shadow-sm">
-           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
-             Status
-           </p>
-           <p className={`text-xl font-black italic uppercase ${selectedItem.status === 'CANCELLED' ? 'text-red-500' : 'text-green-500'}`}>
-             {selectedItem.status}
-           </p>
-        </div>      
-           <div className="bg-white p-6 rounded-[32px] border border-gray-50 shadow-sm text-right">
+          </p></div>
+
+<div>
            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Ends In</p>
-           <p className="text-lg font-black italic uppercase">
+           <p className="text-5px font-black italic uppercase">
              {selectedItem.status === 'CANCELLED' ? (
                <span className="text-gray-300">--:--:--</span>
              ) : (
@@ -555,6 +557,23 @@ const fetchItems = useCallback(async () => {
              )}
            </p>
         </div>
+
+        </div>
+              
+              <div className="flex justify-between items-center mb-10 bg-white p-6 rounded-[32px] border border-gray-50 shadow-sm">
+                 <div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Highest Bid</p>
+                    <p className="text-10px font-black text-green-500 italic">{Number(selectedItem.currentBid).toFixed(2)} π</p>
+                 </div>
+           <div className="bg-white p-6 rounded-[32px] border border-gray-50 shadow-sm">
+           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
+             Status
+           </p>
+           <p className={`text-10px font-black italic uppercase ${selectedItem.status === 'CANCELLED' ? 'text-red-500' : 'text-green-500'}`}>
+             {selectedItem.status}
+           </p>
+        </div>      
+           
               
               </div>
               
@@ -601,34 +620,100 @@ const fetchItems = useCallback(async () => {
 
       {/* BID MODAL (2nd Image Layout) */}
       {isBidModalOpen && selectedItem && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-end justify-center p-4">
-            <div className="bg-white w-full max-w-sm rounded-[48px] p-8 pb-12 shadow-2xl animate-in slide-in-from-bottom duration-500">
-              <div className="flex justify-between items-center mb-8">
-                <h3 className="text-xl font-black uppercase italic tracking-tight">Place your bid</h3>
-                <X onClick={() => setIsBidModalOpen(false)} className="text-gray-400 cursor-pointer" />
-              </div>
-              <div className="flex gap-3 mb-6">
-                  {[0.5, 1, 5, 10].map(val => (
-                     <button key={val} onClick={() => setBidAmount((Number(selectedItem.currentBid) + val).toFixed(2))}
-                      className="flex-1 py-3 bg-gray-50 rounded-2xl text-[10px] font-black border border-gray-100 active:bg-green-100">
-                        +{val} π
-                     </button>
-                  ))}
-              </div>
-              <div className="bg-[#F8F9FB] py-10 rounded-[40px] mb-8 border border-gray-100 text-center">
-                <input type="number" value={bidAmount} onChange={(e) => setBidAmount(e.target.value)}
-                  placeholder={(Number(selectedItem.currentBid) + 0.1).toFixed(2)} 
-                  className="bg-transparent text-6xl font-black text-gray-900 outline-none w-full text-center" 
-                />
-              </div>
-              <button onClick={handleBidAction} disabled={isPaying}
-                className="w-full py-6 rounded-[32px] bg-green-500 text-white font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 shadow-lg">
-                {isPaying ? <RefreshCcw className="animate-spin" /> : <TrendingUp size={20} />}
-                {isPaying ? 'Processing...' : 'Confirm Bid'}
-              </button>
-            </div>
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div className="bg-white w-full max-w-lg rounded-t-[40px] sm:rounded-[40px] p-8 pb-12 shadow-2xl animate-in slide-in-from-bottom duration-300">
+      
+      {/* Header */}
+      <div className="flex justify-between items-start mb-2">
+        <div>
+          <h3 className="text-2xl font-black text-gray-900">Place your bid</h3>
+          <p className="text-xs text-gray-400 mt-1 leading-relaxed max-w-[280px]">
+            You can place your current bid and you can also place a max bid just in case anybody outbids your proposal
+          </p>
         </div>
-      )}
+        <button 
+          onClick={() => setIsBidModalOpen(false)}
+          className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      {/* Last Bid Stats Card */}
+      <div className="bg-[#F8F9FB] rounded-2xl p-4 flex justify-between items-center mb-8 border border-gray-100">
+        <div>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
+            Last bid by <span className="text-blue-500">Vinstian2</span>
+          </p>
+          <p className="text-2xl font-black text-gray-900 mt-1">
+            {Number(selectedItem.currentBid).toFixed(2)} <span className="text-sm font-bold">π</span>
+          </p>
+        </div>
+        <button className="text-[10px] font-black text-gray-400 underline decoration-gray-300 underline-offset-4 uppercase">
+          See all {selectedItem._count?.bids || 0} Bids
+        </button>
+      </div>
+
+      {/* Bid Input Section */}
+      <div className="space-y-6">
+        <div>
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Your bid</label>
+          <div className="relative group">
+            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-xl font-black text-gray-900 group-focus-within:text-green-500 transition-colors">π</span>
+            <input 
+              type="number" 
+              value={bidAmount} 
+              onChange={(e) => setBidAmount(e.target.value)}
+              placeholder={(Number(selectedItem.currentBid) + 0.1).toFixed(2)}
+              className="w-full bg-white border-2 border-gray-100 focus:border-green-500 rounded-2xl py-5 pl-12 pr-6 text-xl font-black outline-none transition-all placeholder:text-gray-200"
+            />
+          </div>
+          
+          {/* Increment Suggestions */}
+          <div className="grid grid-cols-4 gap-2 mt-3">
+            {[0.1, 0.5, 1.0, 2.5].map((inc) => {
+              const suggestedVal = (Number(selectedItem.currentBid) + inc).toFixed(2);
+              return (
+                <button 
+                  key={inc}
+                  onClick={() => setBidAmount(suggestedVal)}
+                  className="py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-[10px] font-black text-gray-600 transition-colors border border-gray-100"
+                >
+                  π{suggestedVal}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Max Bid Section */}
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Your max bid</label>
+            <span className="text-[9px] font-bold text-gray-300 uppercase italic">Optional</span>
+          </div>
+          <div className="relative group">
+            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-xl font-black text-gray-200 group-focus-within:text-gray-400 transition-colors">π</span>
+            <input 
+              type="number" 
+              placeholder={(Number(selectedItem.currentBid) + 1).toFixed(2)}
+              className="w-full bg-white border-2 border-gray-100 focus:border-gray-300 rounded-2xl py-5 pl-12 pr-6 text-xl font-black outline-none transition-all placeholder:text-gray-100"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Action Button */}
+      <button 
+        onClick={handleBidAction} 
+        disabled={isPaying}
+        className="w-full mt-10 py-6 rounded-[24px] bg-[#1A1D21] text-white font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 shadow-xl active:scale-[0.98] transition-all disabled:bg-gray-200"
+      >
+        {isPaying ? <RefreshCcw className="animate-spin" size={20} /> : "Place Bid"}
+      </button>
+    </div>
+  </div>
+)}
     </div>
   );
 }
