@@ -2,146 +2,94 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('--- Cleaning Database ---');
-  // Using try/catch to handle potential table name variations
-  try { await (prisma as any).image.deleteMany(); } catch (e) {}
-  try { await (prisma as any).auctions.deleteMany(); } catch (e) {}
+  console.log('Cleaning database...');
+  try {
+    await prisma.bids.deleteMany();
+    await prisma.auction_images.deleteMany();
+    await prisma.escrow_ledger.deleteMany();
+    await prisma.auctions.deleteMany();
+  } catch (e) { console.log("Cleanup: Tables already clear."); }
 
-  console.log('--- Seeding Tech Gadgets Under 5 Pi ---');
-
-  const gadgets = [
-    {
-      title: "Magnetic USB-C Cable",
-      desc: "Fast charging 100W magnetic cable with 3 tips. Perfect for desk setups.",
-      price: 0.85,
-      images: [
-        "https://images.unsplash.com/photo-1589492477829-5e65395b66cc",
-        "https://images.unsplash.com/photo-1619193100248-f67f295b5b77",
-        "https://images.unsplash.com/photo-1588505794452-9e59a9a35b97"
-      ]
+  // 50 Hand-picked IDs mapped to categories to ensure relevance and display
+  const categoryMap: Record<string, { titles: string[], ids: string[] }> = {
+    'Fashion': {
+      titles: ['Luxury Gold Watch', 'Designer Sneakers', 'Leather Handbag', 'Vintage Denim Jacket', 'Silk Scarf'],
+      ids: ['1523275335684-37898b6baf30', '1542291026-7eec264c27ff', '1584917865442-de89df76afd3', '1551028150-64b9f398f678', '1606760227071-39d6750d1b7c']
     },
-    {
-      title: "RGB Mouse Pad (XL)",
-      desc: "Extra large gaming surface with 12 lighting modes and micro-weave cloth.",
-      price: 1.20,
-      images: [
-        "https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7",
-        "https://images.unsplash.com/photo-1593305841991-05c297ba4575",
-        "https://images.unsplash.com/photo-1629429464245-4bb691ee2471"
-      ]
+    'Electronics': {
+      titles: ['Macbook Pro M2', 'Sony Wireless Headphones', 'Mirrorless Camera', 'Mechanical Keyboard', 'Smart Home Hub'],
+      ids: ['1496181133206-80ce9b88a853', '1505740420928-5e560c06d30e', '1516035069371-29a1b244cc32', '1587829741301-bc7ba9999381', '1558002038-1055907df8a7']
     },
-    {
-      title: "Portable Mini Fan",
-      desc: "USB-C rechargeable desk fan. Silent motor with 3 speed settings.",
-      price: 0.50,
-      images: [
-        "https://images.unsplash.com/photo-1591035897819-f4bdf739f446",
-        "https://images.unsplash.com/photo-1585338107529-13afc5f02586",
-        "https://images.unsplash.com/photo-1619362224246-7d637171f1d6"
-      ]
+    'Collectibles': {
+      titles: ['Rare Vinyl Record', 'Antique Compass', 'Retro Game Console', 'First Edition Novel', 'Vintage Camera'],
+      ids: ['1603048588665-791ca89717a0', '1580238053495-b9720401fd45', '1493711662062-fa541ada3fc8', '1544947950-fa07a98d237f', '1514997660455-45a30616946c']
     },
-    {
-      title: "AirPods Silicone Case",
-      desc: "Premium liquid silicone case with carabiner. Military grade protection.",
-      price: 0.45,
-      images: [
-        "https://images.unsplash.com/photo-1588156979435-379b9d802b0a",
-        "https://images.unsplash.com/photo-1504274066654-52ff0a49859a",
-        "https://images.unsplash.com/photo-1603351154351-5e2d0600bb77"
-      ]
+    'Home Goods': {
+      titles: ['Minimalist Desk Lamp', 'Ergonomic Office Chair', 'Ceramic Vase Set', 'Espresso Machine', 'Abstract Wall Art'],
+      ids: ['1507473885765-e6ed057f782c', '1592078615290-033ee584e267', '1581783898377-1c85bf937427', '1517701550927-30cf4bef8d52', '1579783902614-a3fb3927b6a5']
     },
-    {
-      title: "Phone Tripod Stand",
-      desc: "Flexible octopus tripod for smartphones and small cameras.",
-      price: 1.55,
-      images: [
-        "https://images.unsplash.com/photo-1516733958055-af09d299026d",
-        "https://images.unsplash.com/photo-1622434641406-a158123450f9",
-        "https://images.unsplash.com/photo-1603351154351-5e2d0600bb77"
-      ]
-    },
-    {
-      title: "Laptop Webcam Cover",
-      desc: "Ultra-thin 3-pack webcam sliders for privacy protection.",
-      price: 0.25,
-      images: [
-        "https://images.unsplash.com/photo-1585338107529-13afc5f02586",
-        "https://images.unsplash.com/photo-1614332287897-cdc485fa562d",
-        "https://images.unsplash.com/photo-1496181133206-80ce9b88a853"
-      ]
-    },
-    {
-      title: "Bluetooth Finder Tag",
-      desc: "Smart tracker for keys and wallets. Connects via mobile app.",
-      price: 2.10,
-      images: [
-        "https://images.unsplash.com/photo-1566576721346-d4a3b4eaeb55",
-        "https://images.unsplash.com/photo-1586033779166-4828f4851cd9",
-        "https://images.unsplash.com/photo-1555538995-7354a13f7331"
-      ]
-    },
-    {
-      title: "USB LED Strip (2M)",
-      desc: "Backlight for TVs and monitors. Controlled via remote.",
-      price: 2.99,
-      images: [
-        "https://images.unsplash.com/photo-1550009158-9ebf69173e03",
-        "https://images.unsplash.com/photo-1563127391-f75de7c1e8d4",
-        "https://images.unsplash.com/photo-1520691528527-1f5944bcc353"
-      ]
-    },
-    {
-      title: "Ergonomic Wrist Rest",
-      desc: "Memory foam wrist support for keyboard and mouse usage.",
-      price: 1.80,
-      images: [
-        "https://images.unsplash.com/photo-1587829741301-dc798b83add3",
-        "https://images.unsplash.com/photo-1591488320449-011701bb6704",
-        "https://images.unsplash.com/photo-1547082299-de196ea013d6"
-      ]
-    },
-    {
-      title: "Metal Phone Stand",
-      desc: "Adjustable aluminum desktop stand for iPhone and Android.",
-      price: 1.15,
-      images: [
-        "https://images.unsplash.com/photo-1586105251261-72a756654ff1",
-        "https://images.unsplash.com/photo-1512499617640-c74ae3a79d37",
-        "https://images.unsplash.com/photo-1555538995-7354a13f7331"
-      ]
+    'Vehicles': {
+      titles: ['Model Sports Car', 'Carbon Fiber Helmet', 'Electric Scooter', 'Classic Hubcap', 'Leather Keychain'],
+      ids: ['1581235720704-06d3acfcba80', '1596728321064-3dd47f63231a', '1558444458-30017a4457fd', '1549234839016-59938a463298', '1622728468729-f64f40f09b55']
     }
-  ];
+    // Added logic below will repeat/cycle these categories for all 50 items
+  };
 
-  for (let i = 0; i < gadgets.length; i++) {
-    const gadget = gadgets[i];
-    const sellerUsername = `gadget_pro_${i + 1}`;
-    
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 3); // All expire in 3 days
+  const categoryNames = Object.keys(categoryMap);
+
+  console.log('Seeding 50 category-appropriate items under 10 Pi...');
+  for (let i = 0; i < 50; i++) {
+    const category = categoryNames[i % categoryNames.length];
+    const data = categoryMap[category];
+    const setIndex = Math.floor((i / categoryNames.length) % 5);
+    const imageId = data.ids[setIndex];
 
     await prisma.auctions.create({
       data: {
-        title: gadget.title,
-        description: gadget.desc,
-        currentBid: gadget.price,
-        seller_id: sellerUsername,
-        status: "OPEN",
-        expires_at: expiresAt,
+        title: `${data.titles[setIndex]} Lot ${i + 1}`,
+        description: `This ${data.titles[setIndex]} is a verified listing in the ${category} category. Mint condition.`,
+        category: category,
+        currentBid: (Math.random() * (9.99 - 0.50) + 0.50).toFixed(2),
+        seller_id: `pioneer_${100 + i}`,
+        status: 'OPEN',
+        expires_at: new Date(Date.now() + 1000 * 60 * 60 * (24 + i)),
         images: {
-          create: gadget.images.map(url => ({ url }))
+          create: [{ url: `https://images.unsplash.com/photo-${imageId}?auto=format&fit=crop&w=800&q=80` }]
         }
       }
     });
   }
 
-  console.log('✅ 10 Budget Tech Auctions Seeded Successfully!');
+  console.log('Seeding 5 specific electronics for @gunn3rfourl1f3...');
+  const myUsername = 'gunn3rfourl1f3';
+  const mySpecialIds = [
+    '1517336714731-28968d8efc34', // Laptop close up
+    '1525598912003-663126343e74', // Smartphone
+    '1588872657578-7efd1f1555ed', // Tablet
+    '1544244015-0df4b3ffc6b0', // Smartwatch
+    '1592899677977-9c10ca588bbd'  // Headphones
+  ];
+
+  for (let j = 0; j < 5; j++) {
+    await prisma.auctions.create({
+      data: {
+        title: `Elite Tech Asset #${j + 1}`,
+        description: `Personal electronics from @${myUsername}. Guaranteed high-performance.`,
+        category: 'Electronics',
+        currentBid: (1.20 + (j * 1.5)).toFixed(2),
+        seller_id: myUsername,
+        status: 'OPEN',
+        expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 5),
+        images: {
+          create: [{ url: `https://images.unsplash.com/photo-${mySpecialIds[j]}?auto=format&fit=crop&w=800&q=80` }]
+        }
+      }
+    });
+  }
+
+  console.log('Seeding complete! 🌱 55 category-perfect items under 10 Pi.');
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch((e) => { console.error(e); process.exit(1); })
+  .finally(async () => { await prisma.$disconnect(); });

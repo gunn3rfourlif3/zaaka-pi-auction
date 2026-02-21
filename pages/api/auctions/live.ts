@@ -8,7 +8,8 @@ export default async function handler(req: any, res: any) {
       },
       include: {
         images: true,
-        // 🟢 This is the magic part that adds the "Number of Bids"
+        // The category field will be included automatically 
+        // if it exists in your schema.prisma file.
         _count: {
           select: { bids: true }
         }

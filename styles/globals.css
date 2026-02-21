@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Add this to handle the "no-scrollbar" class used in the code */
 @layer utilities {
   .no-scrollbar::-webkit-scrollbar {
     display: none;
@@ -11,4 +10,19 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+}
+
+html {
+  /* This ensures the background stays consistent but doesn't lock height */
+  background-color: #F8F9FB;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  /* Removed height: 100% and padding-bottom */
+  min-height: 100vh;
+  /* Support for modern mobile browsers viewport height */
+  min-height: -webkit-fill-available;
 }

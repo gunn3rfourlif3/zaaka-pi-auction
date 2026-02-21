@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Head from 'next/head';
 
 import {
 
@@ -94,6 +95,14 @@ export default function ZaakaDashboard() {
 
   const [isBidModalOpen, setIsBidModalOpen] = useState(false);
 
+  const [selectedMarketCategory, setSelectedMarketCategory] = useState('All');
+
+  const categories = ['Fashion', 'Electronics', 'Collectibles', 'Home Goods', 'Vehicles', 'Comics', 'Art', 'Jewelry', 'Sports', 'Books'];
+
+  const filteredItems = selectedMarketCategory === 'All' 
+    ? items 
+    : items.filter((item: any) => item.category === selectedMarketCategory);
+
   const [newListing, setNewListing] = useState({
 
   title: '',
@@ -104,9 +113,14 @@ export default function ZaakaDashboard() {
 
   images: ['', '', ''], // Three image slots
 
-  duration: '24' // Default to 24 hours
+  duration: '24', // Default to 24 hours
+
+  category: 'Fashion' // Default category
 
 });
+
+// List of categories based on your image
+
 
 // --- IMAGE UPLOADER LOGIC ---
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
@@ -539,6 +553,8 @@ alert("Bid successful!");
         title: newListing.title,
         description: newListing.description,
         startPrice: newListing.price,
+        price: newListing.price, // Ensu
+        category: newListing.category,
         sellerId: user.username.replace('@', ''), // Uses authenticated username
         imageUrls: newListing.images.filter(url => url !== ''),
         expiresAt: expirationDate.toISOString()
@@ -560,6 +576,13 @@ alert("Bid successful!");
 
 
   return (
+    <>
+    <Head>
+      <title>Zaaka Marketplace</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover"   />
+    </Head>
+
+    
 
     <div className="min-h-screen bg-[#F8F9FB] text-[#1A1D21] pb-36 font-sans antialiased">
 
@@ -669,57 +692,80 @@ alert("Bid successful!");
 
         {view === 'market' && (
 
+
+
+
           <div className="space-y-6">
-
+<div className="flex gap-2 overflow-x-auto no-scrollbar pb-6 mb-2 -mx-2 px-2">
+  <button 
+    onClick={() => setSelectedMarketCategory('All')}
+    className={`px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest transition-all border ${
+      selectedMarketCategory === 'All' 
+        ? 'bg-blue-600 text-white border-blue-600 shadow-lg scale-105' 
+        : 'bg-white text-gray-400 border-gray-100'
+    }`}
+  >
+    All
+  </button>
+  
+  {categories.map(cat => (
+    <button 
+      key={cat} 
+      onClick={() => setSelectedMarketCategory(cat)}
+      className={`px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
+        selectedMarketCategory === cat 
+          ? 'bg-blue-600 text-white border-blue-600 shadow-lg scale-105' 
+          : 'bg-white text-gray-400 border-gray-100'
+      }`}
+    >
+      {cat}
+    </button>
+  ))}
+</div>
             {loading ? (
-
-              <div className="flex flex-col items-center py-24 opacity-20"><RefreshCcw className="animate-spin" size={32} /></div>
-
-            ) : (
-
-              items.map((item: any) => (
-
-                <div key={item.id} className="bg-white rounded-[44px] p-3 border border-gray-50 shadow-sm">
-
-                  <div className="relative h-60 w-full bg-[#F2F4F7] rounded-[36px] overflow-hidden flex items-center justify-center">
-
-                    <img src={item.images?.[0]?.url || item.image_url} className="w-full h-full object-cover" alt={item.title} />
-
-                  </div>
-
-                  <div className="p-5 flex justify-between items-end">
-
-                    <div>
-
-                      <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter mb-1">{item.title}</h4>
-
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Asset #{item.id}</p>
-
-                    </div>
-
-                    <div className="text-right">
-
-                      <p className="text-[10px] font-black text-gray-300 uppercase leading-none mb-1">Price</p>
-
-                      <p className="text-xl font-black text-green-500 italic leading-none">{Number(item.currentBid).toFixed(2)} π</p>
-
-                    </div>
-
-                  </div>
-
-                  <button onClick={() => { setSelectedItem(item); setView('detail'); }}
-
-                    className="w-full py-5 rounded-[28px] bg-[#1A1D21] text-white font-black uppercase text-[11px] tracking-[0.2em]">
-
-                    View Auction <ChevronRight size={14} className="inline ml-1" />
-
-                  </button>
-
-                </div>
+              
+<div className="flex justify-center py-20 opacity-20"><RefreshCcw className="animate-spin" size={32} /></div>
+  ) : filteredItems.length > 0 ? (
+    filteredItems.map((item: any) => (
+      <div key={item.id} className="bg-white rounded-[44px] p-3 border border-gray-50 shadow-sm animate-in fade-in zoom-in duration-300">
+        <div className="relative h-60 w-full bg-[#F2F4F7] rounded-[36px] overflow-hidden">
+          <img src={item.images?.[0]?.url || item.image_url} className="w-full h-full object-cover" alt="" />
+          {/* CATEGORY BADGE ON THE CARD */}
+          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full text-[8px] font-black uppercase text-blue-600 shadow-sm">
+            {item.category || 'General'}
+          </div>
+        </div>
+        
+        <div className="p-5 flex justify-between items-end">
+          <div>
+            <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter">{item.title}</h4>
+            <p className="text-[10px] font-bold text-gray-400 uppercase">Asset #{item.id}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xl font-black text-green-500 italic">{Number(item.currentBid).toFixed(2)} π</p>
+          </div>
+        </div>
+        
+        <button 
+          onClick={() => { setSelectedItem(item); setView('detail'); }} 
+          className="w-full py-5 rounded-[28px] bg-[#1A1D21] text-white font-black uppercase text-[11px] tracking-widest active:scale-95 transition-transform"
+        >
+          View Auction
+        </button>
+      </div>
 
               ))
+              ) : (
+    /* EMPTY STATE */
+    <div className="text-center py-24 bg-white rounded-[44px] border border-dashed border-gray-200">
+      <Package className="mx-auto text-gray-200 mb-4" size={48} />
+      <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+        No items in {selectedMarketCategory}
+      </p>
+    </div>
+  )}
 
-            )}
+  
 
           </div>
 
@@ -780,6 +826,26 @@ alert("Bid successful!");
           </label>
         )}
       </div>
+    ))}
+  </div>
+</div>
+<div className="bg-white p-6 rounded-[40px] shadow-sm border border-gray-50">
+  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4 block">
+    Item Category
+  </label>
+  <div className="flex flex-wrap gap-2">
+    {categories.map((cat) => (
+      <button
+        key={cat}
+        onClick={() => setNewListing({ ...newListing, category: cat })}
+        className={`px-5 py-2.5 rounded-full text-[11px] font-bold transition-all border ${
+          newListing.category === cat
+            ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105'
+            : 'bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100'
+        }`}
+      >
+        {cat}
+      </button>
     ))}
   </div>
 </div>
@@ -1207,25 +1273,36 @@ alert("Bid successful!");
 
 
 
-      {/* BOTTOM NAV */}
 
-      {view !== 'detail' && (
+        {/* BOTTOM NAV */}
+{view !== 'detail' && (
+<nav className="fixed bottom-[max(70px,env(safe-area-inset-bottom)+46px)] left-8 right-8 h-20 bg-[#1A1D21]/95 backdrop-blur-xl rounded-[32px] flex items-center justify-around px-6 shadow-2xl z-[999]">
+        <button 
+          className={`p-4 rounded-2xl transition-all ${view === 'market' ? 'text-white bg-white/10' : 'text-gray-500'}`} 
+          onClick={() => setView('market')}
+        >
+          <Home size={22} />
+        </button>
 
-        <nav className="fixed bottom-8 left-8 right-8 h-20 bg-[#1A1D21]/95 backdrop-blur-xl rounded-[32px] flex items-center justify-around px-6 shadow-2xl z-50">
+        <button className="text-gray-500"><Search size={22} /></button>
 
-          <button className="text-white bg-white/10 p-4 rounded-2xl" onClick={() => setView('market')}><Home size={22} /></button>
+        <button 
+          className={`p-4 rounded-2xl transition-all ${view === 'inventory' ? 'text-white bg-white/10' : 'text-gray-500'}`} 
+          onClick={() => setView('inventory')}
+        >
+          <Gavel size={22} />
+        </button>
 
-          <button className="text-gray-500"><Search size={22} /></button>
+        <button 
+          className={`p-4 rounded-2xl transition-all ${view === 'create' ? 'text-white bg-white/10' : 'text-gray-500'}`} 
+          onClick={() => setView('create' as any)}
+        >
+          <Plus size={22} />
+        </button>
 
-          <button className="text-gray-500" onClick={() => setView('inventory')}><Gavel size={22} /></button>
+        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-green-400 to-blue-400 border border-white/10 shrink-0"></div>
+      </nav>
 
-          {/* THE CENTRAL SELL BUTTON */}
-
-    <button className="text-white bg-white/10 p-4 rounded-2xl"  onClick={() => setView('create' as any)}>  <Plus size={22}  /></button>
-
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-green-400 to-blue-400"></div>
-
-        </nav>
 
       )}
 
@@ -1424,7 +1501,7 @@ alert("Bid successful!");
 )}
 
     </div>
-
+</>
   );
 
 }
