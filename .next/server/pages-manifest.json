@@ -3,6 +3,6 @@
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
   "/": "pages/index.js",
-  "/api/auctions/live": "pages/api/auctions/live.js",
-  "/api/seller/items": "pages/api/seller/items.js"
+  "/api/seller/items": "pages/api/seller/items.js",
+  "/api/auctions/live": "pages/api/auctions/live.js"
 }

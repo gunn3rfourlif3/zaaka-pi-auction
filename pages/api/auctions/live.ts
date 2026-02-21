@@ -8,8 +8,11 @@ export default async function handler(req: any, res: any) {
       },
       include: {
         images: true,
-        // The category field will be included automatically 
-        // if it exists in your schema.prisma file.
+        bids: {
+          select: {
+            bidder_id: true, // 🟢 FIXED: Match schema (underscore)
+          }
+        },
         _count: {
           select: { bids: true }
         }
@@ -19,8 +22,9 @@ export default async function handler(req: any, res: any) {
       }
     });
 
-    res.status(200).json(auctions);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch auctions" });
+    return res.status(200).json(auctions);
+  } catch (error: any) {
+    console.error("API Error:", error.message);
+    return res.status(500).json({ error: "Failed to fetch auctions" });
   }
 }

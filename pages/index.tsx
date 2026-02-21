@@ -91,7 +91,7 @@ export default function ZaakaDashboard() {
 
   const [isInitializing, setIsInitializing] = useState(false);
 
-  const [view, setView] = useState<'market' | 'inventory' | 'detail'>('market');
+const [view, setView] = useState<'market' | 'inventory' | 'my-bids' | 'detail' | 'create'>('market');
 
   const [isBidModalOpen, setIsBidModalOpen] = useState(false);
 
@@ -99,10 +99,13 @@ export default function ZaakaDashboard() {
 
   const categories = ['Fashion', 'Electronics', 'Collectibles', 'Home Goods', 'Vehicles', 'Comics', 'Art', 'Jewelry', 'Sports', 'Books'];
 
-  const filteredItems = selectedMarketCategory === 'All' 
-    ? items 
-    : items.filter((item: any) => item.category === selectedMarketCategory);
-
+// const filteredItems = (items || [])
+//   .filter((item: any) => item.status === 'OPEN') // Only show active auctions
+//   .filter((item: any) => 
+//     selectedMarketCategory === 'All' ? true : item.category === selectedMarketCategory
+//   );
+  
+const filteredItems = items.filter(item => item.status === 'OPEN');
   const [newListing, setNewListing] = useState({
 
   title: '',
@@ -319,53 +322,31 @@ const getTimeRemaining = (expiryDate: string) => {
   // 2. DATA FETCHING (Using include: images from backend)
 
 const fetchItems = useCallback(async () => {
-
   setLoading(true);
-
   const activeUser = user?.username?.replace('@', '') || "guest";
-
   try {
-
-    // Ensure your backend endpoint respects the "status"
-
-    const endpoint = view === 'market'
-
+    // Determine endpoint based on view
+    const endpoint = (view === 'market' || view === 'my-bids')
       ? '/api/auctions/live'
-
       : `/api/seller/items?sellerId=${activeUser}`;
-
      
-
     const res = await fetch(endpoint);
-
     const data = await res.json();
-
    
-
-    // 🟢 Extra safety: Filter out non-OPEN items on the frontend too
-
-    const filteredData = Array.isArray(data)
-
-      ? data.filter((item: any) => item.status === 'OPEN')
-
-      : [];
-
-     
-
-    setItems(filteredData);
-
+    // Ensure we are dealing with an array before filtering
+    if (Array.isArray(data)) {
+      setItems(data); // Don't filter out OPEN items here, do it in the render logic
+    } else {
+      console.error("API did not return an array:", data);
+      setItems([]);
+    }
   } catch (err) {
-
     console.error("Fetch failed", err);
-
+    setItems([]);
   } finally {
-
     setLoading(false);
-
   }
-
 }, [view, user]);
-
 
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
@@ -658,25 +639,24 @@ alert("Bid successful!");
 
           <main className="px-6 pt-10">
 
-            <div className="flex gap-4 mb-8">
-
-              {['Market', 'Inventory'].map((tab) => (
-
-                <button key={tab} onClick={() => setView(tab.toLowerCase() as any)}
-
-                  className={`flex-1 py-4 rounded-full text-[10px] font-black tracking-[0.1em] uppercase transition-all ${
-
-                    view === tab.toLowerCase() ? 'bg-[#1A1D21] text-white shadow-xl' : 'bg-white text-gray-400 border border-gray-100'
-
-                  }`}>
-
-                  {tab}
-
-                </button>
-
-              ))}
-
-            </div>
+            <div className="flex gap-2 mb-8">
+  {['Market', 'Inventory', 'My Bids'].map((tab) => {
+    const tabKey = tab.toLowerCase().replace(' ', '-'); // Converts "My Bids" to "my-bids"
+    return (
+      <button 
+        key={tab} 
+        onClick={() => setView(tabKey as any)}
+        className={`flex-1 py-4 rounded-full text-[10px] font-black tracking-[0.1em] uppercase transition-all ${
+          view === tabKey 
+            ? 'bg-[#1A1D21] text-white shadow-xl' 
+            : 'bg-white text-gray-400 border border-gray-100'
+        }`}
+      >
+        {tab}
+      </button>
+    );
+  })}
+</div>
 
           </main>
 
@@ -691,86 +671,98 @@ alert("Bid successful!");
       <main className="px-6">
 
         {view === 'market' && (
-
-
-
-
-          <div className="space-y-6">
-<div className="flex gap-2 overflow-x-auto no-scrollbar pb-6 mb-2 -mx-2 px-2">
-  <button 
-    onClick={() => setSelectedMarketCategory('All')}
-    className={`px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest transition-all border ${
-      selectedMarketCategory === 'All' 
-        ? 'bg-blue-600 text-white border-blue-600 shadow-lg scale-105' 
-        : 'bg-white text-gray-400 border-gray-100'
-    }`}
-  >
-    All
-  </button>
-  
-  {categories.map(cat => (
-    <button 
-      key={cat} 
-      onClick={() => setSelectedMarketCategory(cat)}
-      className={`px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
-        selectedMarketCategory === cat 
-          ? 'bg-blue-600 text-white border-blue-600 shadow-lg scale-105' 
-          : 'bg-white text-gray-400 border-gray-100'
-      }`}
-    >
-      {cat}
-    </button>
-  ))}
-</div>
-            {loading ? (
-              
-<div className="flex justify-center py-20 opacity-20"><RefreshCcw className="animate-spin" size={32} /></div>
-  ) : filteredItems.length > 0 ? (
-    filteredItems.map((item: any) => (
-      <div key={item.id} className="bg-white rounded-[44px] p-3 border border-gray-50 shadow-sm animate-in fade-in zoom-in duration-300">
-        <div className="relative h-60 w-full bg-[#F2F4F7] rounded-[36px] overflow-hidden">
-          <img src={item.images?.[0]?.url || item.image_url} className="w-full h-full object-cover" alt="" />
-          {/* CATEGORY BADGE ON THE CARD */}
-          <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full text-[8px] font-black uppercase text-blue-600 shadow-sm">
-            {item.category || 'General'}
-          </div>
-        </div>
-        
-        <div className="p-5 flex justify-between items-end">
-          <div>
-            <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter">{item.title}</h4>
-            <p className="text-[10px] font-bold text-gray-400 uppercase">Asset #{item.id}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xl font-black text-green-500 italic">{Number(item.currentBid).toFixed(2)} π</p>
-          </div>
-        </div>
-        
+  <div className="space-y-6">
+    {/* CATEGORY SCROLLER */}
+    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-6 mb-2 -mx-2 px-2">
+      <button 
+        onClick={() => setSelectedMarketCategory('All')}
+        className={`px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest transition-all border ${
+          selectedMarketCategory === 'All' 
+            ? 'bg-blue-600 text-white border-blue-600 shadow-lg scale-105' 
+            : 'bg-white text-gray-400 border-gray-100'
+        }`}
+      >
+        All
+      </button>
+      
+      {categories.map(cat => (
         <button 
-          onClick={() => { setSelectedItem(item); setView('detail'); }} 
-          className="w-full py-5 rounded-[28px] bg-[#1A1D21] text-white font-black uppercase text-[11px] tracking-widest active:scale-95 transition-transform"
+          key={cat} 
+          onClick={() => setSelectedMarketCategory(cat)}
+          className={`px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
+            selectedMarketCategory === cat 
+              ? 'bg-blue-600 text-white border-blue-600 shadow-lg scale-105' 
+              : 'bg-white text-gray-400 border-gray-100'
+          }`}
         >
-          View Auction
+          {cat}
         </button>
-      </div>
-
-              ))
-              ) : (
-    /* EMPTY STATE */
-    <div className="text-center py-24 bg-white rounded-[44px] border border-dashed border-gray-200">
-      <Package className="mx-auto text-gray-200 mb-4" size={48} />
-      <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
-        No items in {selectedMarketCategory}
-      </p>
+      ))}
     </div>
-  )}
 
-  
+    {/* AUCTION GRID */}
+    {loading ? (
+      <div className="flex justify-center py-20 opacity-20">
+        <RefreshCcw className="animate-spin" size={32} />
+      </div>
+    ) : (filteredItems && filteredItems.length > 0) ? (
+      filteredItems.map((item: any) => (
+        <div 
+          key={item.id} 
+          onClick={() => { setSelectedItem(item); setView('detail'); }} 
+          className="bg-white rounded-[44px] p-3 border border-gray-50 shadow-sm animate-in fade-in zoom-in duration-300 active:scale-[0.98] transition-transform cursor-pointer"
+        >
+          <div className="relative h-60 w-full bg-[#F2F4F7] rounded-[36px] overflow-hidden">
+            <img 
+              src={item.images?.[0]?.url || item.image_url} 
+              className="w-full h-full object-cover" 
+              alt={item.title} 
+            />
+            
+            <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 shadow-lg">
+              <p className="text-[11px] font-black text-white italic tracking-tighter">
+                <AuctionTimer expiryDate={item.expires_at} />
+              </p>
+            </div>
 
+            <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full text-[8px] font-black uppercase text-blue-600 shadow-sm">
+              {item.category || 'General'}
+            </div>
           </div>
-
-        )}
-
+          
+          <div className="p-5 flex justify-between items-end">
+            <div>
+              <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter">
+                {item.title}
+              </h4>
+              <p className="text-[10px] font-bold text-gray-400 uppercase">
+                Asset #{item.id}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xl font-black text-green-500 italic">
+                {Number(item.currentBid).toFixed(2)} π
+              </p>
+            </div>
+          </div>
+          
+          <button 
+            className="w-full py-5 rounded-[28px] bg-[#1A1D21] text-white font-black uppercase text-[11px] tracking-widest"
+          >
+            View Auction
+          </button>
+        </div>
+      ))
+    ) : (
+      <div className="text-center py-24 bg-white rounded-[44px] border border-dashed border-gray-200">
+        <Package className="mx-auto text-gray-200 mb-4" size={48} />
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+          No items in {selectedMarketCategory}
+        </p>
+      </div>
+    )}
+  </div>
+)}
 
 
         {view === 'create' as any && (
@@ -1008,6 +1000,7 @@ alert("Bid successful!");
             <div className="relative h-48 w-full bg-[#F2F4F7] rounded-[36px] overflow-hidden">
 
               <img src={item.images?.[0]?.url} className="w-full h-full object-cover" alt={item.title} />
+              
 
               <div className="absolute top-4 left-4 bg-blue-600 text-white text-[8px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest">
 
@@ -1057,8 +1050,83 @@ alert("Bid successful!");
 
   )}
 
+{view === 'my-bids' && (
+  <div className="space-y-6 animate-in fade-in duration-500">
+    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-4">Participation History</h3>
+    
+    {loading ? (
+      <div className="flex justify-center py-20 opacity-20"><RefreshCcw className="animate-spin" /></div>
+    ) : items.filter(item => 
+        item.highest_bidder_uid === user?.uid || 
+        (item.bids && item.bids.some((b: any) => b.bidder_id === user?.uid)) // 🟢 Matches Schema
+      ).length > 0 ? (
+      items
+        .filter(item => 
+          item.highest_bidder_uid === user?.uid || 
+          (item.bids && item.bids.some((b: any) => b.bidder_id === user?.uid)) // 🟢 FIXED: was bidderId
+        )
+        .map((item: any) => {
+         const cleanUsername = user?.username?.replace('@', '');
+  const isWinning = 
+    item.highest_bidder_uid === user?.uid || 
+    item.highest_bidder_id === cleanUsername ||
+    item.highest_bidder_uid === cleanUsername;
+          
+          return (
+            <div key={item.id} className="bg-white rounded-[44px] p-3 border border-gray-50 shadow-sm relative active:scale-[0.98] transition-all">
+              <div className="relative h-48 w-full bg-[#F2F4F7] rounded-[36px] overflow-hidden">
+                <img src={item.images?.[0]?.url || item.image_url} className="w-full h-full object-cover" alt="" />
+                
+                
+                {/* 🟢 LIVE INDICATOR */}
+                <div className="absolute top-4 left-4">
+                  <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest shadow-xl transition-all ${
+                    isWinning 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-red-500 text-white animate-pulse'
+                  }`}>
+                    {isWinning ? (
+                      <>Winning <TrendingUp size={12} /></>
+                    ) : (
+                      <>Outbid <RefreshCcw size={12} /></>
+                    )}
+                    <div className="p-2 bg-gray-100 text-[8px] rounded">
+  Me: {user?.uid} | Winner: {item.highest_bidder_uid}
+</div>
+                  </div>
+                </div>
+              </div>
 
-
+              <div className="p-5 flex justify-between items-center">
+                <div>
+                  <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter">{item.title}</h4>
+                  <p className="text-[10px] font-bold text-gray-400">
+                    {isWinning ? "Your Leading Bid: " : "Current Highest: "} 
+                    <span className={isWinning ? "text-green-500" : "text-red-500"}>
+                      {Number(item.currentBid).toFixed(2)} π
+                    </span>
+                  </p>
+                </div>
+                <button 
+                  onClick={() => { setSelectedItem(item); setView('detail'); }}
+                  className={`px-6 py-3 rounded-2xl font-black uppercase text-[9px] transition-all ${
+                    isWinning ? 'bg-gray-100 text-gray-400' : 'bg-[#1A1D21] text-white shadow-lg'
+                  }`}
+                >
+                  {isWinning ? "View" : "Rebid"}
+                </button>
+              </div>
+            </div>
+          );
+        })
+    ) : (
+      <div className="text-center py-20 bg-white rounded-[44px] border border-dashed border-gray-200">
+        <Package className="mx-auto text-gray-200 mb-4" size={48} />
+        <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">No bids placed yet</p>
+      </div>
+    )}
+  </div>
+)}
         {view === 'detail' && selectedItem && (
 
           <div className="animate-in fade-in slide-in-from-right duration-300">
