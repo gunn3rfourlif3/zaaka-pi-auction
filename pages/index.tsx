@@ -1054,80 +1054,69 @@ alert("Bid successful!");
   <div className="space-y-6 animate-in fade-in duration-500">
     <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-4">Participation History</h3>
     
-    {loading ? (
-      <div className="flex justify-center py-20 opacity-20"><RefreshCcw className="animate-spin" /></div>
-    ) : items.filter(item => 
-        item.highest_bidder_uid === user?.uid || 
-        (item.bids && item.bids.some((b: any) => b.bidder_id === user?.uid)) // 🟢 Matches Schema
-      ).length > 0 ? (
-      items
-        .filter(item => 
-          item.highest_bidder_uid === user?.uid || 
-          (item.bids && item.bids.some((b: any) => b.bidder_id === user?.uid)) // 🟢 FIXED: was bidderId
-        )
-        .map((item: any) => {
-         const cleanUsername = user?.username?.replace('@', '');
-  const isWinning = 
-    item.highest_bidder_uid === user?.uid || 
-    item.highest_bidder_id === cleanUsername ||
-    item.highest_bidder_uid === cleanUsername;
-          
-          return (
-            <div key={item.id} className="bg-white rounded-[44px] p-3 border border-gray-50 shadow-sm relative active:scale-[0.98] transition-all">
-              <div className="relative h-48 w-full bg-[#F2F4F7] rounded-[36px] overflow-hidden">
-                <img src={item.images?.[0]?.url || item.image_url} className="w-full h-full object-cover" alt="" />
-                
-                
-                {/* 🟢 LIVE INDICATOR */}
-                <div className="absolute top-4 left-4">
-                  <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest shadow-xl transition-all ${
-                    isWinning 
-                      ? 'bg-green-500 text-white' 
-                      : 'bg-red-500 text-white animate-pulse'
-                  }`}>
-                    {isWinning ? (
-                      <>Winning <TrendingUp size={12} /></>
-                    ) : (
-                      <>Outbid <RefreshCcw size={12} /></>
-                    )}
-                    <div className="p-2 bg-gray-100 text-[8px] rounded">
-  Me: {user?.uid} | Winner: {item.highest_bidder_uid}
-</div>
+    {!user ? null : (
+      <>
+        {loading ? (
+          <div className="flex justify-center py-20 opacity-20"><RefreshCcw className="animate-spin" /></div>
+        ) : items.filter(item => 
+            item.bids?.some((b: any) => b.bidder_id === user.username?.replace('@', '') || b.bidder_id === user.uid)
+          ).length > 0 ? (
+          items
+            .filter(item => 
+              item.bids?.some((b: any) => b.bidder_id === user.username?.replace('@', '') || b.bidder_id === user.uid)
+            )
+            .map((item: any) => {
+              const cleanUsername = user?.username?.replace('@', '');
+              const topBidder = item.bids?.[0]?.bidder_id;
+              const isWinning = topBidder === cleanUsername || topBidder === user?.uid;
+              
+              return (
+                <div key={item.id} className="bg-white rounded-[44px] p-3 border border-gray-50 shadow-sm relative active:scale-[0.98] transition-all">
+                  <div className="relative h-48 w-full bg-[#F2F4F7] rounded-[36px] overflow-hidden">
+                    <img src={item.images?.[0]?.url || item.image_url} className="w-full h-full object-cover" alt="" />
+                    <div className="absolute top-4 left-4">
+                      <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest shadow-xl transition-all ${
+                        isWinning ? 'bg-green-500 text-white' : 'bg-red-500 text-white animate-pulse'
+                      }`}>
+                        {isWinning ? "Winning" : "Outbid"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-5 flex justify-between items-center">
+                    <div>
+                      <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter">{item.title}</h4>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">
+                        {isWinning ? "Leading: " : "Highest: "} 
+                        <span className={isWinning ? "text-green-500" : "text-red-500"}>
+                          {Number(item.currentBid).toFixed(2)} π
+                        </span>
+                      </p>
+                    </div>
+                    <button 
+                      onClick={() => { setSelectedItem(item); setView('detail'); }}
+                      className="px-6 py-3 rounded-2xl bg-[#1A1D21] text-white font-black uppercase text-[9px]"
+                    >
+                      {isWinning ? "View" : "Rebid"}
+                    </button>
                   </div>
                 </div>
-              </div>
-
-              <div className="p-5 flex justify-between items-center">
-                <div>
-                  <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter">{item.title}</h4>
-                  <p className="text-[10px] font-bold text-gray-400">
-                    {isWinning ? "Your Leading Bid: " : "Current Highest: "} 
-                    <span className={isWinning ? "text-green-500" : "text-red-500"}>
-                      {Number(item.currentBid).toFixed(2)} π
-                    </span>
-                  </p>
-                </div>
-                <button 
-                  onClick={() => { setSelectedItem(item); setView('detail'); }}
-                  className={`px-6 py-3 rounded-2xl font-black uppercase text-[9px] transition-all ${
-                    isWinning ? 'bg-gray-100 text-gray-400' : 'bg-[#1A1D21] text-white shadow-lg'
-                  }`}
-                >
-                  {isWinning ? "View" : "Rebid"}
-                </button>
-              </div>
-            </div>
-          );
-        })
-    ) : (
-      <div className="text-center py-20 bg-white rounded-[44px] border border-dashed border-gray-200">
-        <Package className="mx-auto text-gray-200 mb-4" size={48} />
-        <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">No bids placed yet</p>
-      </div>
+              );
+            })
+        ) : (
+          <div className="text-center py-20 bg-white rounded-[44px] border border-dashed border-gray-200">
+            <Package className="mx-auto text-gray-200 mb-4" size={48} />
+            <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">No bids placed yet</p>
+          </div>
+        )}
+      </>
     )}
   </div>
 )}
-        {view === 'detail' && selectedItem && (
+
+
+
+       {view === 'detail' && selectedItem && (
 
           <div className="animate-in fade-in slide-in-from-right duration-300">
 
