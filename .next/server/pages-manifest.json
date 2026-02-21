@@ -2,7 +2,7 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
+  "/api/seller/items": "pages/api/seller/items.js",
   "/api/auctions/live": "pages/api/auctions/live.js",
-  "/": "pages/index.js",
-  "/api/seller/items": "pages/api/seller/items.js"
+  "/": "pages/index.js"
 }

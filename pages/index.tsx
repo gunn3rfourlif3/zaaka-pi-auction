@@ -982,79 +982,61 @@ alert("Bid successful!");
         {/* INVENTORY VIEW (Add this block!) */}
 
   {view === 'inventory' && (
-
-    <div className="space-y-6">
-
-      <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-4">Your Listings ({items.length})</h3>
-
-      {loading ? (
-
-        <div className="flex flex-col items-center py-24 opacity-20"><RefreshCcw className="animate-spin" size={32} /></div>
-
-      ) : items.length > 0 ? (
-
-        items.map((item: any) => (
-
-          <div key={item.id} className="bg-white rounded-[44px] p-3 border border-blue-100 shadow-md">
-
-            <div className="relative h-48 w-full bg-[#F2F4F7] rounded-[36px] overflow-hidden">
-
-              <img src={item.images?.[0]?.url} className="w-full h-full object-cover" alt={item.title} />
-              
-
-              <div className="absolute top-4 left-4 bg-blue-600 text-white text-[8px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest">
-
-                Owner View
-
+  <div className="space-y-6">
+    <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-4">Your Listings ({items.length})</h3>
+    
+    {/* 🟢 Login check added: Only shows activity message if user is not logged in */}
+    {!user ? (
+      <div className="text-center py-24 bg-white rounded-[44px] border border-dashed border-gray-200">
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Log in to see your activity</p>
+      </div>
+    ) : (
+      <>
+        {loading ? (
+          <div className="flex flex-col items-center py-24 opacity-20"><RefreshCcw className="animate-spin" size={32} /></div>
+        ) : items.length > 0 ? (
+          items.map((item: any) => (
+            <div key={item.id} className="bg-white rounded-[44px] p-3 border border-blue-100 shadow-md">
+              <div className="relative h-48 w-full bg-[#F2F4F7] rounded-[36px] overflow-hidden">
+                <img src={item.images?.[0]?.url} className="w-full h-full object-cover" alt={item.title} />
+                
+                <div className="absolute top-4 left-4 bg-blue-600 text-white text-[8px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest">
+                  Owner View
+                </div>
               </div>
 
-            </div>
-
-            <div className="p-5">
-
-              <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter mb-1">{item.title}</h4>
-
-              <div className="flex justify-between items-center mt-4">
-
-                <p className="text-xl font-black text-gray-900 italic leading-none">{Number(item.currentBid).toFixed(2)} π</p>
-
-                <button onClick={() => { setSelectedItem(item); setView('detail'); }}
-
-                  className="px-6 py-3 rounded-2xl bg-gray-100 text-[#1A1D21] font-black uppercase text-[9px] tracking-widest">
-
-                  Manage
-
-                </button>
-
+              <div className="p-5">
+                <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter mb-1">{item.title}</h4>
+                <div className="flex justify-between items-center mt-4">
+                  <p className="text-xl font-black text-gray-900 italic leading-none">{Number(item.currentBid).toFixed(2)} π</p>
+                  <button onClick={() => { setSelectedItem(item); setView('detail'); }}
+                    className="px-6 py-3 rounded-2xl bg-gray-100 text-[#1A1D21] font-black uppercase text-[9px] tracking-widest">
+                    Manage
+                  </button>
+                </div>
               </div>
-
             </div>
-
+          ))
+        ) : (
+          <div className="text-center py-20 bg-white rounded-[44px] border border-dashed border-gray-200">
+            <Package className="mx-auto text-gray-200 mb-4" size={48} />
+            <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">No Items Found</p>
           </div>
-
-        ))
-
-      ) : (
-
-        <div className="text-center py-20 bg-white rounded-[44px] border border-dashed border-gray-200">
-
-          <Package className="mx-auto text-gray-200 mb-4" size={48} />
-
-          <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">No Items Found</p>
-
-        </div>
-
-      )}
-
-    </div>
-
-  )}
+        )}
+      </>
+    )}
+  </div>
+)}
 
 {view === 'my-bids' && (
   <div className="space-y-6 animate-in fade-in duration-500">
     <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-4">Participation History</h3>
     
-    {!user ? null : (
+    {!user ? (
+      <div className="text-center py-24 bg-white rounded-[44px] border border-dashed border-gray-200">
+        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Log in to see your activity</p>
+      </div>
+    ) : (
       <>
         {loading ? (
           <div className="flex justify-center py-20 opacity-20"><RefreshCcw className="animate-spin" /></div>
@@ -1075,14 +1057,13 @@ alert("Bid successful!");
                   <div className="relative h-48 w-full bg-[#F2F4F7] rounded-[36px] overflow-hidden">
                     <img src={item.images?.[0]?.url || item.image_url} className="w-full h-full object-cover" alt="" />
                     <div className="absolute top-4 left-4">
-                      <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest shadow-xl transition-all ${
+                      <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest shadow-xl ${
                         isWinning ? 'bg-green-500 text-white' : 'bg-red-500 text-white animate-pulse'
                       }`}>
                         {isWinning ? "Winning" : "Outbid"}
                       </div>
                     </div>
                   </div>
-
                   <div className="p-5 flex justify-between items-center">
                     <div>
                       <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter">{item.title}</h4>
@@ -1097,7 +1078,7 @@ alert("Bid successful!");
                       onClick={() => { setSelectedItem(item); setView('detail'); }}
                       className="px-6 py-3 rounded-2xl bg-[#1A1D21] text-white font-black uppercase text-[9px]"
                     >
-                      {isWinning ? "View" : "Rebid"}
+                      View
                     </button>
                   </div>
                 </div>
@@ -1113,7 +1094,6 @@ alert("Bid successful!");
     )}
   </div>
 )}
-
 
 
        {view === 'detail' && selectedItem && (
