@@ -77,11 +77,10 @@ const [watchlist, setWatchlist] = useState<number[]>([]);
 //   );
   
 const filteredItems = items.filter(item => {
-  // If we are looking at the watchlist tab
-  if (view === 'watchlist') {
-    return watchlist.includes(item.id);
+  if (view === 'watchlist' as any) {
+    // Only show if user is logged in AND the ID is in THEIR specific list
+    return user && watchlist.includes(item.id);
   }
-  // Otherwise, show open items filtered by category
   return item.status === 'OPEN' && (selectedMarketCategory === 'All' ? true : item.category === selectedMarketCategory);
 });
 
@@ -140,11 +139,31 @@ useEffect(() => {
 
 // Save Watchlist whenever it changes
 useEffect(() => {
-  localStorage.setItem('zaaka_watchlist', JSON.stringify(watchlist));
-}, [watchlist]);
+  if (user) {
+    const saved = localStorage.getItem(`zaaka_watchlist_${user.uid}`);
+    setWatchlist(saved ? JSON.parse(saved) : []);
+  } else {
+    setWatchlist([]); // Clear view if logged out
+  }
+}, [user]);
+
+// Save Watchlist - Only when user and watchlist change
+useEffect(() => {
+  if (user) {
+    localStorage.setItem(`zaaka_watchlist_${user.uid}`, JSON.stringify(watchlist));
+  }
+}, [watchlist, user]);
 
 const toggleWatchlist = (e: React.MouseEvent, id: number) => {
-  e.stopPropagation(); // Prevents navigating to detail view when clicking heart
+  e.stopPropagation();
+  e.preventDefault();
+
+  if (!user) {
+    alert("Please log in to manage your watchlist.");
+    handleLogin();
+    return;
+  }
+
   setWatchlist(prev => 
     prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
   );
@@ -661,14 +680,7 @@ alert("Bid successful!");
 
       <main className="px-6">
 
-        {view === 'watchlist' && filteredItems.length === 0 && (
-  <div className="text-center py-20">
-    <Heart className="mx-auto text-gray-200 mb-4" size={48} />
-    <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">
-      Your watchlist is empty
-    </p>
-  </div>
-)}
+       
 
        {(view === 'market' || view === 'watchlist') && (
     <div className="space-y-6">
