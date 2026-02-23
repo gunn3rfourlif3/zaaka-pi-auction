@@ -7,72 +7,41 @@ import {
 
   Search, Bell, Timer, TrendingUp,
 
-  ChevronRight, Wallet, Home, Trophy, Plus
+  ChevronRight, Wallet, Home, Trophy, Plus, Heart
 
 } from 'lucide-react';
 
 
 
-const AuctionTimer = ({ expiryDate }: { expiryDate: string }) => {
-
+/* Update your AuctionTimer component at the top of index.tsx */
+const AuctionTimer = ({ expiryDate, auctionId, onEnd }: { expiryDate: string, auctionId?: number, onEnd?: () => void }) => {
   const [timeLeft, setTimeLeft] = useState("");
 
-
-
   useEffect(() => {
-
-    const calculate = () => {
-
+    const calculate = async () => {
       const difference = +new Date(expiryDate) - +new Date();
-
+      
       if (difference <= 0) {
-
         setTimeLeft("AUCTION ENDED");
-
+        // Trigger automation
+        if (onEnd) onEnd();
         return;
-
       }
 
-
-
       const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
-
       const minutes = Math.floor((difference / 1000 / 60) % 60);
-
       const seconds = Math.floor((difference / 1000) % 60);
-
       const days = Math.floor(difference / (1000 * 60 * 60 * 24));
 
-
-
-      setTimeLeft(
-
-        `${days > 0 ? days + 'd ' : ''}${hours.toString().padStart(2, '0')}:${minutes
-
-          .toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-
-      );
-
+      setTimeLeft(`${days > 0 ? days + 'd ' : ''}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
     };
 
-
-
     const timer = setInterval(calculate, 1000);
-
-    calculate(); // Initial call
-
-
-
     return () => clearInterval(timer);
-
-  }, [expiryDate]);
-
-
+  }, [expiryDate, onEnd]);
 
   return <span className="tabular-nums">{timeLeft}</span>;
-
 };
-
 
 
 export default function ZaakaDashboard() {
@@ -93,6 +62,8 @@ export default function ZaakaDashboard() {
 
 const [view, setView] = useState<'market' | 'inventory' | 'my-bids' | 'detail' | 'create'>('market');
 
+const [watchlist, setWatchlist] = useState<number[]>([]);
+
   const [isBidModalOpen, setIsBidModalOpen] = useState(false);
 
   const [selectedMarketCategory, setSelectedMarketCategory] = useState('All');
@@ -105,7 +76,15 @@ const [view, setView] = useState<'market' | 'inventory' | 'my-bids' | 'detail' |
 //     selectedMarketCategory === 'All' ? true : item.category === selectedMarketCategory
 //   );
   
-const filteredItems = items.filter(item => item.status === 'OPEN');
+const filteredItems = items.filter(item => {
+  // If we are looking at the watchlist tab
+  if (view === 'watchlist') {
+    return watchlist.includes(item.id);
+  }
+  // Otherwise, show open items filtered by category
+  return item.status === 'OPEN' && (selectedMarketCategory === 'All' ? true : item.category === selectedMarketCategory);
+});
+
   const [newListing, setNewListing] = useState({
 
   title: '',
@@ -154,7 +133,22 @@ const filteredItems = items.filter(item => item.status === 'OPEN');
   };
   reader.readAsDataURL(file);
 };
+useEffect(() => {
+  const saved = localStorage.getItem('zaaka_watchlist');
+  if (saved) setWatchlist(JSON.parse(saved));
+}, []);
 
+// Save Watchlist whenever it changes
+useEffect(() => {
+  localStorage.setItem('zaaka_watchlist', JSON.stringify(watchlist));
+}, [watchlist]);
+
+const toggleWatchlist = (e: React.MouseEvent, id: number) => {
+  e.stopPropagation(); // Prevents navigating to detail view when clicking heart
+  setWatchlist(prev => 
+    prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+  );
+};
 
 
 
@@ -325,19 +319,17 @@ const fetchItems = useCallback(async () => {
   setLoading(true);
   const activeUser = user?.username?.replace('@', '') || "guest";
   try {
-    // Determine endpoint based on view
-    const endpoint = (view === 'market' || view === 'my-bids')
+    // Add 'watchlist' to this condition so it fetches the live items to compare against
+    const endpoint = (view === 'market' || view === 'my-bids' || view === 'watchlist')
       ? '/api/auctions/live'
       : `/api/seller/items?sellerId=${activeUser}`;
      
     const res = await fetch(endpoint);
     const data = await res.json();
    
-    // Ensure we are dealing with an array before filtering
     if (Array.isArray(data)) {
-      setItems(data); // Don't filter out OPEN items here, do it in the render logic
+      setItems(data);
     } else {
-      console.error("API did not return an array:", data);
       setItems([]);
     }
   } catch (err) {
@@ -347,7 +339,6 @@ const fetchItems = useCallback(async () => {
     setLoading(false);
   }
 }, [view, user]);
-
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
@@ -640,7 +631,7 @@ alert("Bid successful!");
           <main className="px-6 pt-10">
 
             <div className="flex gap-2 mb-8">
-  {['Market', 'Inventory', 'My Bids'].map((tab) => {
+  {['Market', 'Inventory', 'My Bids', 'Watchlist'].map((tab) => {
     const tabKey = tab.toLowerCase().replace(' ', '-'); // Converts "My Bids" to "my-bids"
     return (
       <button 
@@ -670,99 +661,105 @@ alert("Bid successful!");
 
       <main className="px-6">
 
-        {view === 'market' && (
-  <div className="space-y-6">
-    {/* CATEGORY SCROLLER */}
-    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-6 mb-2 -mx-2 px-2">
-      <button 
-        onClick={() => setSelectedMarketCategory('All')}
-        className={`px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest transition-all border ${
-          selectedMarketCategory === 'All' 
-            ? 'bg-blue-600 text-white border-blue-600 shadow-lg scale-105' 
-            : 'bg-white text-gray-400 border-gray-100'
-        }`}
-      >
-        All
-      </button>
-      
-      {categories.map(cat => (
-        <button 
-          key={cat} 
-          onClick={() => setSelectedMarketCategory(cat)}
-          className={`px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all border ${
-            selectedMarketCategory === cat 
-              ? 'bg-blue-600 text-white border-blue-600 shadow-lg scale-105' 
-              : 'bg-white text-gray-400 border-gray-100'
-          }`}
-        >
-          {cat}
-        </button>
-      ))}
-    </div>
-
-    {/* AUCTION GRID */}
-    {loading ? (
-      <div className="flex justify-center py-20 opacity-20">
-        <RefreshCcw className="animate-spin" size={32} />
-      </div>
-    ) : (filteredItems && filteredItems.length > 0) ? (
-      filteredItems.map((item: any) => (
-        <div 
-          key={item.id} 
-          onClick={() => { setSelectedItem(item); setView('detail'); }} 
-          className="bg-white rounded-[44px] p-3 border border-gray-50 shadow-sm animate-in fade-in zoom-in duration-300 active:scale-[0.98] transition-transform cursor-pointer"
-        >
-          <div className="relative h-60 w-full bg-[#F2F4F7] rounded-[36px] overflow-hidden">
-            <img 
-              src={item.images?.[0]?.url || item.image_url} 
-              className="w-full h-full object-cover" 
-              alt={item.title} 
-            />
-            
-            <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 shadow-lg">
-              <p className="text-[11px] font-black text-white italic tracking-tighter">
-                <AuctionTimer expiryDate={item.expires_at} />
-              </p>
-            </div>
-
-            <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full text-[8px] font-black uppercase text-blue-600 shadow-sm">
-              {item.category || 'General'}
-            </div>
-          </div>
-          
-          <div className="p-5 flex justify-between items-end">
-            <div>
-              <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter">
-                {item.title}
-              </h4>
-              <p className="text-[10px] font-bold text-gray-400 uppercase">
-                Asset #{item.id}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-xl font-black text-green-500 italic">
-                {Number(item.currentBid).toFixed(2)} π
-              </p>
-            </div>
-          </div>
-          
-          <button 
-            className="w-full py-5 rounded-[28px] bg-[#1A1D21] text-white font-black uppercase text-[11px] tracking-widest"
-          >
-            View Auction
-          </button>
-        </div>
-      ))
-    ) : (
-      <div className="text-center py-24 bg-white rounded-[44px] border border-dashed border-gray-200">
-        <Package className="mx-auto text-gray-200 mb-4" size={48} />
-        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
-          No items in {selectedMarketCategory}
-        </p>
-      </div>
-    )}
+        {view === 'watchlist' && filteredItems.length === 0 && (
+  <div className="text-center py-20">
+    <Heart className="mx-auto text-gray-200 mb-4" size={48} />
+    <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest">
+      Your watchlist is empty
+    </p>
   </div>
 )}
+
+       {(view === 'market' || view === 'watchlist') && (
+    <div className="space-y-6">
+      {/* CATEGORY SCROLLER - Only visible in Market tab */}
+      {view === 'market' && (
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-6 mb-2 -mx-2 px-2">
+          <button 
+            onClick={() => setSelectedMarketCategory('All')}
+            className={`px-5 py-2.5 rounded-full text-[11px] font-black uppercase transition-all border ${
+              selectedMarketCategory === 'All' ? 'bg-blue-600 text-white' : 'bg-white text-gray-400'
+            }`}
+          >
+            All
+          </button>
+          {categories.map(cat => (
+            <button 
+              key={cat} 
+              onClick={() => setSelectedMarketCategory(cat)}
+              className={`px-5 py-2.5 rounded-full text-[11px] font-black uppercase whitespace-nowrap border ${
+                selectedMarketCategory === cat ? 'bg-blue-600 text-white' : 'bg-white text-gray-400'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-20 opacity-20">
+          <RefreshCcw className="animate-spin" size={32} />
+        </div>
+      ) : filteredItems.length > 0 ? (
+        filteredItems.map((item: any) => (
+          <div 
+            key={item.id} 
+            onClick={() => { setSelectedItem(item); setView('detail'); }} 
+            className="bg-white rounded-[44px] p-3 border border-gray-50 shadow-sm transition-transform cursor-pointer"
+          >
+            <div className="relative h-60 w-full bg-[#F2F4F7] rounded-[36px] overflow-hidden">
+              <img src={item.images?.[0]?.url || item.image_url} className="w-full h-full object-cover" alt="" />
+              
+              <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10">
+                <p className="text-[11px] font-black text-white italic">
+                  <AuctionTimer expiryDate={item.expires_at} />
+                </p>
+              </div>
+
+              <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1.5 rounded-full text-[8px] font-black uppercase text-blue-600">
+                {item.category || 'General'}
+              </div>
+
+              {/* THE HEART BUTTON */}
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation(); 
+                  toggleWatchlist(e, item.id);
+                }} 
+                className="absolute bottom-4 right-4 p-3 bg-white/90 backdrop-blur rounded-2xl shadow-xl z-20"
+              >
+                <Heart 
+                  size={20} 
+                  className={watchlist.includes(item.id) ? "fill-red-500 text-red-500" : "text-gray-400"} 
+                />
+              </button>
+            </div>
+            
+            <div className="p-5 flex justify-between items-end">
+              <div>
+                <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter">{item.title}</h4>
+                <p className="text-[10px] font-bold text-gray-400 uppercase">Asset #{item.id}</p>
+              </div>
+              <p className="text-xl font-black text-green-500 italic">{Number(item.currentBid).toFixed(2)} π</p>
+            </div>
+            
+            <button className="w-full py-5 rounded-[28px] bg-[#1A1D21] text-white font-black uppercase text-[11px]">
+              View Auction
+            </button>
+          </div>
+        ))
+      ) : (
+        <div className="text-center py-24 bg-white rounded-[44px] border border-dashed border-gray-200">
+          <Package className="mx-auto text-gray-200 mb-4" size={48} />
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
+            {view === 'watchlist' ? 'No items in your watchlist' : 'No items found'}
+          </p>
+        </div>
+      )}
+    </div>
+  )}
 
 
         {view === 'create' as any && (
@@ -1321,7 +1318,7 @@ alert("Bid successful!");
           <Home size={22} />
         </button>
 
-        <button className="text-gray-500"><Search size={22} /></button>
+        {/* <button className="text-gray-500"><Search size={22} /></button> */}
 
         <button 
           className={`p-4 rounded-2xl transition-all ${view === 'inventory' ? 'text-white bg-white/10' : 'text-gray-500'}`} 
@@ -1329,6 +1326,8 @@ alert("Bid successful!");
         >
           <Gavel size={22} />
         </button>
+
+        <button className={`p-4 rounded-2xl ${view === 'watchlist' ? 'text-white bg-white/10' : 'text-gray-500'}`} onClick={() => setView('watchlist')}><Heart size={22} /></button>
 
         <button 
           className={`p-4 rounded-2xl transition-all ${view === 'create' ? 'text-white bg-white/10' : 'text-gray-500'}`} 
