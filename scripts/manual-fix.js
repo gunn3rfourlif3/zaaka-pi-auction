@@ -1,7 +1,7 @@
 const axios = require('axios');
 
-const PI_API_KEY = "jmeafs86gkrxxi5q8vku2j2zqgbj6r4abedtdo8swmrq636ey7fcva66zjo1wz0q"; // From Pi Dev Dashboard
-const PAYMENT_ID = "Bep0vOBcpYXwf7tWG7NcddBCnX4T";
+const PI_API_KEY = "2dpdlrlgtczswfe7akru61b61ssnyqgwhsow0d5efhw7e1jrmdnxibdx4e5txejz"; // From Pi Dev Dashboard
+const PAYMENT_ID = "JJQgUsj28fFtHkHR1GukEVABfwKu";
 
 async function fix() {
   try {

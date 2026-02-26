@@ -17,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const paymentData = await piRes.json();
     const auctionId = paymentData.metadata?.auctionId;
     const bidAmount = paymentData.amount;
-    const bidderUid = paymentData.user_uid;
+    const bidderUsername = paymentData.metadata?.buyerUsername || paymentData.user_uid;
 
     if (!auctionId) throw new Error("Missing auctionId in metadata");
 
@@ -29,12 +29,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         data: { currentBid: Number(bidAmount) }
       }),
       // Create the bid entry using the verified schema fields
-      (prisma as any).bids.create({
+      prisma.bids.create({
         data: {
           amount: Number(bidAmount),
-          bidder_id: bidderUid, 
+          bidder_id: bidderUsername, 
+          pi_payment_id: paymentId,
           auction: { connect: { id: Number(auctionId) } }
-          // Removed txid as it is not in your schema
         }
       })
     ]);

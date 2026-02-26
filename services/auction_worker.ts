@@ -2,16 +2,12 @@ import 'dotenv/config';
 import path from 'path';
 import dotenv from 'dotenv';
 import cron from 'node-cron';
-import pg from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../src/generated/client/client';
-import { processAuctionEscrow } from './settlement_service'; // Move your settlement logic here
+import { PrismaClient } from '@prisma/client';
+import { processAuctionEscrow } from './settlement_service';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient();
 
 /**
  * ZAAKA HEARTBEAT SYNC (Automated)
@@ -24,8 +20,8 @@ cron.schedule('*/10 * * * * *', async () => {
         // 1. Identify auctions that just expired
         const expired = await prisma.auctions.findMany({
             where: {
-                end_time: { lt: now },
-                status: 'ACTIVE'
+                expires_at: { lt: now },
+                status: 'OPEN'
             }
         });
 
@@ -40,7 +36,7 @@ cron.schedule('*/10 * * * * *', async () => {
 
             // 3. Trigger the Financial Settlement & Escrow Handshake
             // This handles the Pi Blockchain API call and Ledger entry
-            await processAuctionEscrow(auction.id);
+            await processAuctionEscrow(auction.id, prisma);
         }
     } catch (error) {
         console.error("❌ Automation Error:", error);

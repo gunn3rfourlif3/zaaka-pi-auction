@@ -7,38 +7,61 @@ import {
 
   Search, Bell, Timer, TrendingUp,
 
-  ChevronRight, Wallet, Home, Trophy, Plus, Heart
+  ChevronRight, Wallet, Home, Trophy, Plus, Heart, MessageSquare, Check
 
 } from 'lucide-react';
 
 
 
 /* Update your AuctionTimer component at the top of index.tsx */
-const AuctionTimer = ({ expiryDate, auctionId, onEnd }: { expiryDate: string, auctionId?: number, onEnd?: () => void }) => {
+const AuctionTimer = ({ 
+  expiryDate, 
+  status, 
+  onEnd 
+}: { 
+  expiryDate: string; 
+  status?: string; 
+  onEnd?: () => void; 
+}) => {
   const [timeLeft, setTimeLeft] = useState("");
+  const hasEndedCalled = React.useRef(false);
 
   useEffect(() => {
-    const calculate = async () => {
-      const difference = +new Date(expiryDate) - +new Date();
-      
-      if (difference <= 0) {
+    const calculate = () => {
+      if (!expiryDate || status !== 'OPEN') {
         setTimeLeft("AUCTION ENDED");
-        // Trigger automation
-        if (onEnd) onEnd();
         return;
       }
 
+      const expiry = new Date(expiryDate);
+      if (isNaN(expiry.getTime())) {
+        setTimeLeft("INVALID DATE");
+        return;
+      }
+
+      const difference = expiry.getTime() - Date.now();
+      
+      if (difference <= 0) {
+        setTimeLeft("AUCTION ENDED");
+        if (onEnd && status === 'OPEN' && !hasEndedCalled.current) {
+          hasEndedCalled.current = true;
+          onEnd();
+        }
+        return;
+      }
+
+      const days = Math.floor(difference / (1000 * 60 * 60 * 24));
       const hours = Math.floor((difference / (1000 * 60 * 60)) % 24);
       const minutes = Math.floor((difference / 1000 / 60) % 60);
       const seconds = Math.floor((difference / 1000) % 60);
-      const days = Math.floor(difference / (1000 * 60 * 60 * 24));
 
       setTimeLeft(`${days > 0 ? days + 'd ' : ''}${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
     };
 
+    calculate(); // Initial call
     const timer = setInterval(calculate, 1000);
     return () => clearInterval(timer);
-  }, [expiryDate, onEnd]);
+  }, [expiryDate, onEnd, status]);
 
   return <span className="tabular-nums">{timeLeft}</span>;
 };
@@ -67,6 +90,12 @@ const [watchlist, setWatchlist] = useState<number[]>([]);
   const [isBidModalOpen, setIsBidModalOpen] = useState(false);
 
   const [selectedMarketCategory, setSelectedMarketCategory] = useState('All');
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const categories = ['Fashion', 'Electronics', 'Collectibles', 'Home Goods', 'Vehicles', 'Comics', 'Art', 'Jewelry', 'Sports', 'Books'];
 
@@ -77,11 +106,30 @@ const [watchlist, setWatchlist] = useState<number[]>([]);
 //   );
   
 const filteredItems = items.filter(item => {
+  const username = user?.username?.replace('@', '');
+  const isSeller = username === item.seller_id;
+  const isExpired = new Date(item.expires_at).getTime() <= now;
+  const isClosed = item.status === 'CLOSED' || isExpired;
+  const winningBid = item.bids?.[0];
+  const isWinner = username === winningBid?.bidder_id;
+
   if (view === 'watchlist' as any) {
-    // Only show if user is logged in AND the ID is in THEIR specific list
     return user && watchlist.includes(item.id);
   }
-  return item.status === 'OPEN' && (selectedMarketCategory === 'All' ? true : item.category === selectedMarketCategory);
+
+  if (view === 'my-bids') {
+    // Show if: user has bid AND (auction is OPEN OR (user WON and NOT delivered))
+    const userHasBid = item.bids?.some((b: any) => b.bidder_id === username);
+    return userHasBid && (!isClosed || (isWinner && !item.delivered));
+  }
+
+  if (view === 'inventory') {
+    // Show if: user is SELLER AND (auction is OPEN OR (auction is CLOSED and NOT delivered))
+    return isSeller && (!isClosed || !item.delivered);
+  }
+
+  // Market view: Only show OPEN and NOT expired auctions
+  return item.status === 'OPEN' && !isExpired && (selectedMarketCategory === 'All' ? true : item.category === selectedMarketCategory);
 });
 
   const [newListing, setNewListing] = useState({
@@ -168,6 +216,7 @@ const toggleWatchlist = (e: React.MouseEvent, id: number) => {
     prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
   );
 };
+
 
 
 
@@ -271,29 +320,38 @@ const getTimeRemaining = (expiryDate: string) => {
   // 1. AUTHENTICATION LOGIC
 
   useEffect(() => {
-
     const syncPi = async () => {
-
       if (typeof window !== "undefined" && (window as any).Pi) {
-
         try {
-
-          await (window as any).Pi.init({ version: "2.0", sandbox: true });
-
+          const Pi = (window as any).Pi;
+          await Pi.init({ version: "2.0", sandbox: true });
           console.log("Handshake successful with Pi Sandbox");
-
+          
+          // Automatically handle incomplete payments on load
+          await Pi.authenticate(['username', 'payments'], async (payment: any) => {
+            try {
+              const res = await fetch('/api/payments/incomplete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ payment })
+          });
+          
+          if (res.ok) {
+            console.log("Incomplete payment recovered on startup.");
+            fetchItems();
+          } else {
+            console.error("Startup recovery failed:", await res.json());
+          }
+            } catch (err) {
+              console.error("Incomplete payment recovery failed:", err);
+            }
+          });
         } catch (e) {
-
-          console.warn("Init pending...");
-
+          console.warn("Init pending or authentication failed...");
         }
-
       }
-
     };
-
     syncPi();
-
   }, []);
 
 
@@ -314,7 +372,27 @@ const getTimeRemaining = (expiryDate: string) => {
 
       await Pi.init({ version: "2.0", sandbox: true });
 
-      const auth = await Pi.authenticate(['username', 'payments'], (p: any) => {});
+      const auth = await Pi.authenticate(['username', 'payments'], async (payment: any) => {
+        // Handle Incomplete Payment
+        try {
+          const res = await fetch('/api/payments/incomplete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ payment })
+          });
+          
+          if (res.ok) {
+            console.log("Pending payment handled successfully.");
+            fetchItems(); // Refresh the list
+          } else {
+            const errorData = await res.json();
+            console.error("Failed to recover payment:", errorData);
+            alert(`Payment recovery failed: ${errorData.details || "Unknown error"}`);
+          }
+        } catch (error) {
+          console.error("Failed to handle pending payment:", error);
+        }
+      });
 
       setUser(auth.user);
 
@@ -423,7 +501,11 @@ const fetchItems = useCallback(async () => {
 
         memo: `Bid for ${selectedItem.title} on Zaaka`,
 
-        metadata: { auctionId: selectedItem.id, buyerUid: user.uid },
+        metadata: { 
+          auctionId: selectedItem.id, 
+          buyerUid: user.uid,
+          buyerUsername: user.username.replace('@', '') 
+        },
 
       }, {
 
@@ -467,13 +549,17 @@ const newBidValue = parseFloat(bidAmount);
 
 // Update the view state manually so the price changes right now
 
-if (selectedItem) {
+if (selectedItem && user) {
 
 setSelectedItem((prev: any) => ({
 
 ...prev,
 
-currentBid: newBidValue
+currentBid: newBidValue,
+
+bids: [{ bidder_id: user.username.replace('@', ''), amount: newBidValue }, ...(prev.bids || [])],
+
+_count: { ...prev._count, bids: (prev._count?.bids || 0) + 1 }
 
 }));
 
@@ -514,6 +600,59 @@ alert("Bid successful!");
     }
 
   };
+
+const handleAutoSettle = useCallback(async (auctionId: number, itemSellerId: string) => {
+  if (!auctionId || !itemSellerId) return;
+
+  try {
+    const response = await fetch('/api/auctions/status', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: auctionId,
+        sellerId: itemSellerId, // We pass the ITEM'S owner, not the current viewer
+        status: 'CLOSED'
+      })
+    });
+
+    if (response.ok) {
+      fetchItems(); // Refresh the list for everyone
+    }
+  } catch (err) {
+    console.error("Auto-settle failed:", err);
+  }
+}, [fetchItems]);
+
+const handleConfirmReceipt = async (auctionId: number) => {
+  if (!user) return;
+  setLoading(true);
+  try {
+    const res = await fetch('/api/auctions/receipt', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: auctionId,
+        username: user.username.replace('@', '')
+      })
+    });
+
+    if (res.ok) {
+      alert("Receipt confirmed! The auction has been removed from your bids.");
+      setSelectedItem(null);
+      setView('market');
+      fetchItems();
+    } else {
+      const err = await res.json();
+      alert(err.error || "Failed to confirm receipt.");
+    }
+  } catch (error) {
+    console.error("Receipt error:", error);
+    alert("An error occurred.");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
 // 4. CREATE LISTING HANDLER
 
@@ -725,7 +864,14 @@ alert("Bid successful!");
               
               <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10">
                 <p className="text-[11px] font-black text-white italic">
-                  <AuctionTimer expiryDate={item.expires_at} />
+                  
+                  <AuctionTimer 
+  expiryDate={item.expires_at}
+  status={item.status}
+  onEnd={() => handleAutoSettle(item.id, item.seller_id)} 
+/>
+                  
+                  
                 </p>
               </div>
 
@@ -1106,214 +1252,191 @@ alert("Bid successful!");
 
 
        {view === 'detail' && selectedItem && (
+  <div className="animate-in fade-in slide-in-from-right duration-300">
+    <button onClick={() => setView('market')} className="mb-6 flex items-center gap-2 font-black uppercase text-[10px] tracking-widest text-gray-400">
+      <ChevronRight className="rotate-180" size={14} /> Back to Market
+    </button>
 
-          <div className="animate-in fade-in slide-in-from-right duration-300">
-
-            <button onClick={() => setView('market')} className="mb-6 flex items-center gap-2 font-black uppercase text-[10px] tracking-widest text-gray-400">
-
-               <ChevronRight className="rotate-180" size={14}/> Back to Market
-
-            </button>
-
-           
-
-            {/* RELATIONAL IMAGE CAROUSEL */}
-
-            <div className="bg-white rounded-[48px] p-4 shadow-sm mb-8">
-
-               <div className="h-[400px] bg-gray-100 rounded-[40px] flex gap-2 overflow-x-auto snap-x no-scrollbar">
-
-                  {selectedItem.images && selectedItem.images.length > 0 ? (
-
-                    selectedItem.images.map((img: any) => (
-
-                      <div key={img.id} className="min-w-full h-full snap-center overflow-hidden rounded-[40px]">
-
-                        <img src={img.url} className="w-full h-full object-cover" alt="Auction Gallery" />
-
-                      </div>
-
-                    ))
-
-                  ) : (
-
-                    <div className="min-w-full h-full">
-
-                      <img src={selectedItem.image_url} className="w-full h-full object-cover" alt="Main Item" />
-
-                    </div>
-
-                  )}
-
-               </div>
-
-               <div className="flex justify-center gap-2 mt-4">
-
-                  {(selectedItem.images?.length || 1) > 1 && selectedItem.images.map((_: any, i: number) => (
-
-                    <div key={i} className={`h-1.5 rounded-full ${i === 0 ? 'w-8 bg-[#1A1D21]' : 'w-2 bg-gray-200'}`}></div>
-
-                  ))}
-
-               </div>
-
+    {/* IMAGE CAROUSEL */}
+    <div className="bg-white rounded-[48px] p-4 shadow-sm mb-8">
+      <div className="h-[400px] bg-gray-100 rounded-[40px] flex gap-2 overflow-x-auto snap-x no-scrollbar">
+        {selectedItem.images && selectedItem.images.length > 0 ? (
+          selectedItem.images.map((img: any) => (
+            <div key={img.id} className="min-w-full h-full snap-center overflow-hidden rounded-[40px]">
+              <img src={img.url} className="w-full h-full object-cover" alt="" />
             </div>
+          ))
+        ) : (
+          <div className="min-w-full h-full">
+            <img src={selectedItem.image_url} className="w-full h-full object-cover" alt="" />
+          </div>
+        )}
+      </div>
+    </div>
 
+    <div className="px-2 pb-20">
+      {/* ROLE IDENTIFICATION */}
+      {(() => {
+        const username = user?.username?.replace('@', '');
+        const isSeller = username === selectedItem.seller_id;
+        const winningBid = selectedItem.bids?.[0]; // Assuming first bid is the winner in a closed auction
+        const isWinner = username === winningBid?.bidder_id;
+        const isExpired = new Date(selectedItem.expires_at).getTime() <= now;
+        const isClosed = selectedItem.status === 'CLOSED' || isExpired;
 
+        return (
+          <>
+            {/* SELLER IDENTITY BADGE */}
+            {isSeller && (
+              <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 text-[9px] font-black px-4 py-2 rounded-full uppercase tracking-[0.15em] mb-4 border border-blue-100">
+                <Package size={12} /> Your Listing
+              </div>
+            )}
 
-            <div className="px-2 pb-20">
+            <h2 className="text-3xl font-black italic uppercase tracking-tighter mb-2">{selectedItem.title}</h2>
+            <p className="text-gray-500 leading-relaxed mb-8 text-sm">{selectedItem.description || "No description provided."}</p>
 
-              {/* SELLER IDENTITY BADGE */}
-
-      {user?.username?.replace('@', '') === selectedItem.seller_id && (
-
-        <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 text-[9px] font-black px-4 py-2 rounded-full uppercase tracking-[0.15em] mb-4 border border-blue-100">
-
-          <Package size={12} /> Your Listing
-
-        </div>
-
-      )}
-
-              <h2 className="text-3xl font-black italic uppercase tracking-tighter mb-2">{selectedItem.title}</h2>
-
-              <p className="text-gray-500 leading-relaxed mb-8 text-sm">{selectedItem.description || "No description provided."}</p>
-
+            {/* STATS GRID */}
+            <div className="grid grid-cols-2 gap-4 mb-10">
               <div className="bg-white p-6 rounded-[32px] border border-gray-50 shadow-sm">
-
-                <div>
-
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
-
-            {user?.username?.replace('@', '') === selectedItem.seller_id ? "Total Bids" : "Highest Bid"}
-
-          </p>
-
-          <p className="text-2xl font-black text-green-500 italic">
-
-            {user?.username?.replace('@', '') === selectedItem.seller_id
-
-              ? (selectedItem._count?.bids || 0)
-
-              : `${Number(selectedItem.currentBid).toFixed(2)} π`}
-
-          </p></div>
-
-
-
-<div>
-
-           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Ends In</p>
-
-           <p className="text-5px font-black italic uppercase">
-
-             {selectedItem.status === 'CANCELLED' ? (
-
-               <span className="text-gray-300">--:--:--</span>
-
-             ) : (
-
-               <AuctionTimer expiryDate={selectedItem.expires_at} />
-
-             )}
-
-           </p>
-
-        </div>
-
-
-
-        </div>
-
-             
-
-              <div className="flex justify-between items-center mb-10 bg-white p-6 rounded-[32px] border border-gray-50 shadow-sm">
-
-                 <div>
-
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Highest Bid</p>
-
-                    <p className="text-10px font-black text-green-500 italic">{Number(selectedItem.currentBid).toFixed(2)} π</p>
-
-                 </div>
-
-           <div className="bg-white p-6 rounded-[32px] border border-gray-50 shadow-sm">
-
-           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
-
-             Status
-
-           </p>
-
-           <p className={`text-10px font-black italic uppercase ${selectedItem.status === 'CANCELLED' ? 'text-red-500' : 'text-green-500'}`}>
-
-             {selectedItem.status}
-
-           </p>
-
-        </div>      
-
-           
-
-             
-
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
+                  {isClosed ? (isSeller ? "Final Sale Price" : "Final Price") : (isSeller ? "Total Bids" : "Highest Bid")}
+                </p>
+                <p className="text-xl font-black text-green-500 italic">
+                  {isClosed 
+                    ? `${Number(selectedItem.currentBid).toFixed(2)} π`
+                    : (isSeller 
+                      ? (selectedItem._count?.bids || 0) 
+                      : `${Number(selectedItem.currentBid).toFixed(2)} π`
+                    )
+                  }
+                </p>
+                {!isSeller && !isClosed && selectedItem.bids?.[0] && (
+                  <p className="text-[9px] font-black text-blue-500 uppercase mt-1 italic opacity-70">
+                    by @{selectedItem.bids[0].bidder_id}
+                  </p>
+                )}
               </div>
 
-             
-
-  {/* CONDITIONAL ACTION BUTTONS */}
-
-      {user?.username?.replace('@', '') === selectedItem.seller_id ? (
-
-        <div className="space-y-4">
-
-          <button
-
-  onClick={handleCancelAuction}
-
-  disabled={loading}
-
-  className="w-full py-6 rounded-[32px] border-2 border-red-100 text-red-500 font-black uppercase tracking-[0.2em] hover:bg-red-50 transition-all flex items-center justify-center gap-2"
-
->
-
-  {loading ? <RefreshCcw className="animate-spin" size={18} /> : "Cancel Auction"}
-
-</button>
-
-          <div className="flex items-center justify-center gap-2 text-gray-400">
-
-            <Gavel size={14} />
-
-            <p className="text-[9px] font-bold uppercase tracking-widest">Ownership protection active</p>
-
-          </div>
-
-        </div>
-
-      ) : (
-
-        <button
-
-          onClick={() => user ? setIsBidModalOpen(true) : handleLogin()}
-
-          className="w-full py-6 rounded-[32px] bg-[#1A1D21] text-white font-black uppercase tracking-[0.2em] shadow-xl active:scale-[0.98] transition-transform"
-
-        >
-
-          {user ? "Place your bid" : "Login to Bid"}
-
-        </button>
-
-      )}
-
-
-
+              <div className="bg-white p-6 rounded-[32px] border border-gray-50 shadow-sm">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
+                  {isClosed ? "Auction Status" : "Ends In"}
+                </p>
+                <p className="text-xl font-black italic uppercase">
+                  {selectedItem.status === 'CANCELLED' ? (
+                    <span className="text-gray-300 text-sm">CANCELLED</span>
+                  ) : isClosed ? (
+                    <span className="text-red-500">CLOSED</span>
+                  ) : (
+                    <AuctionTimer 
+                      expiryDate={selectedItem.expires_at} 
+                      status={selectedItem.status}
+                      onEnd={() => handleAutoSettle(selectedItem.id, selectedItem.seller_id)}
+                    />
+                  )}
+                </p>
+              </div>
             </div>
 
-          </div>
+            {/* ACTION BUTTONS / POST-AUCTION VIEWS */}
+            {isClosed ? (
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom duration-500">
+                {isWinner ? (
+                  /* THE WINNER VIEW */
+                  <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-[40px] p-8 border border-yellow-100 relative overflow-hidden">
+                    <div className="relative z-10">
+                      <div className="w-16 h-16 bg-yellow-400 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-yellow-200 rotate-3">
+                        <Trophy className="text-white" size={32} />
+                      </div>
+                      <h3 className="text-2xl font-black italic uppercase tracking-tighter text-yellow-700 mb-2">You Won!</h3>
+                      <p className="text-yellow-600/80 text-sm mb-8 leading-relaxed font-medium">Congratulations! You are the winner of this auction. Please contact the seller to arrange delivery.</p>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <button className="bg-yellow-500 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 shadow-md shadow-yellow-200 active:scale-95 transition-all">
+                          <MessageSquare size={14} /> Contact Seller
+                        </button>
+                        <button 
+                          onClick={() => handleConfirmReceipt(selectedItem.id)}
+                          disabled={loading || selectedItem.delivered}
+                          className="bg-white text-yellow-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 border border-yellow-100 shadow-sm active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          {loading ? <RefreshCcw className="animate-spin" size={14} /> : (selectedItem.delivered ? "Received" : <><Check size={14} /> Confirm Receipt</>)}
+                        </button>
+                      </div>
+                    </div>
+                    {/* Decorative Background Elements */}
+                    <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-yellow-200/20 rounded-full blur-3xl"></div>
+                  </div>
+                ) : isSeller ? (
+                  /* THE SELLER VIEW */
+                  <div className="bg-[#1A1D21] rounded-[40px] p-8 text-white border border-gray-800 relative overflow-hidden">
+                    <div className="relative z-10">
+                      <div className="inline-flex items-center gap-2 bg-green-500 text-white text-[9px] font-black px-4 py-2 rounded-full uppercase tracking-widest mb-4">
+                        <Check size={10} /> Item Sold
+                      </div>
+                      <h3 className="text-2xl font-black italic uppercase tracking-tighter mb-6">Auction Successful</h3>
+                      
+                      <div className="bg-white/5 rounded-2xl p-4 border border-white/10 mb-8">
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-1">Winning Bidder</p>
+                        <p className="text-lg font-black text-blue-400 italic">@{winningBid?.bidder_id || "Unknown"}</p>
+                      </div>
 
-        )}
+                      <button className="w-full bg-white text-black py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 active:scale-95 transition-all">
+                        <MessageSquare size={16} /> Message Winner
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* OTHERS VIEW */
+                  <div className="bg-gray-50 rounded-[40px] p-8 border border-dashed border-gray-200 text-center">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">This Auction has</p>
+                    <h3 className="text-2xl font-black italic uppercase tracking-tighter text-gray-900 mb-6">Officially Closed</h3>
+                    <div className="inline-flex items-center gap-4 bg-white px-6 py-3 rounded-2xl border border-gray-100 shadow-sm">
+                      <div className="text-left">
+                        <p className="text-[8px] font-black text-gray-400 uppercase">Final Price</p>
+                        <p className="text-lg font-black text-green-500 italic">{Number(selectedItem.currentBid).toFixed(2)} π</p>
+                      </div>
+                      <div className="w-px h-8 bg-gray-100"></div>
+                      <div className="text-left">
+                        <p className="text-[8px] font-black text-gray-400 uppercase">Winner</p>
+                        <p className="text-sm font-black text-gray-900 italic">@{winningBid?.bidder_id}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : isSeller ? (
+              <button
+                onClick={handleCancelAuction}
+                disabled={loading}
+                className="w-full py-6 rounded-[32px] border-2 border-red-100 text-red-500 font-black uppercase tracking-[0.2em] hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+              >
+                {loading ? <RefreshCcw className="animate-spin" size={18} /> : "Cancel Auction"}
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  if (!user) {
+                    handleLogin();
+                  } else {
+                    setIsBidModalOpen(true);
+                  }
+                }}
+                className="w-full py-6 rounded-[32px] font-black uppercase tracking-[0.2em] shadow-xl active:scale-[0.98] transition-all bg-[#1A1D21] text-white"
+              >
+                {user ? "Place your bid" : "Login to Bid"}
+              </button>
+            )}
+          </>
+        );
+      })()}
+    </div>
+  </div>
+)}
+
+
+
+   
 
       </main>
 
@@ -1405,9 +1528,11 @@ alert("Bid successful!");
         <div>
 
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
-
-            Last bid by <span className="text-blue-500">Vinstian2</span>
-
+            {selectedItem.bids && selectedItem.bids.length > 0 ? (
+              <>Last bid by <span className="text-blue-500">@{selectedItem.bids[0].bidder_id}</span></>
+            ) : (
+              "No bids yet"
+            )}
           </p>
 
           <p className="text-2xl font-black text-gray-900 mt-1">

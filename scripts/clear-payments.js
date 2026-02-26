@@ -1,52 +1,67 @@
 const axios = require('axios');
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
-// Replace this with your actual API Key from the Pi Developer Dashboard
-const PI_API_KEY = "jmeafs86gkrxxi5q8vku2j2zqgbj6r4abedtdo8swmrq636ey7fcva66zjo1wz0q"; 
+const PI_API_KEY = process.env.PI_API_KEY;
+// Check if --execute was passed in the terminal
+const IS_DRY_RUN = !process.argv.includes('--execute');
 
 async function clearPending() {
-  console.log('--- Starting Payment Cleanup ---');
+  console.log('--- 🛡️ Pi Payment Cleanup Tool ---');
+  if (IS_DRY_RUN) {
+    console.log('🧪 MODE: DRY RUN (No changes will be made. Use --execute to commit)');
+  } else {
+    console.log('⚠️ MODE: LIVE EXECUTION (Changes will be written to Pi Network)');
+  }
   
+  if (!PI_API_KEY) {
+    console.error("❌ Error: PI_API_KEY is missing in .env");
+    return;
+  }
+  console.log(`Using API Key starting with: ${PI_API_KEY.trim().substring(0, 8)}...`);
+
   try {
-    // 1. Fetch incomplete payments specifically
-    // Note: The Pi API sometimes requires full qualification or specific filters
     const res = await axios.get('https://api.minepi.com/v2/payments/incomplete', {
-      headers: { Authorization: `Key ${PI_API_KEY}` }
+      headers: { 
+        'Authorization': `Key ${PI_API_KEY.trim()}`,
+        'Content-Type': 'application/json'
+      }
     });
 
     const incompletePayments = res.data.incomplete_payments || [];
 
     if (incompletePayments.length === 0) {
-      console.log('No incomplete payments found on the server.');
+      console.log('✅ No incomplete payments found on the server.');
       return;
     }
 
-    console.log(`Found ${incompletePayments.length} incomplete payments.`);
+    console.log(`🔍 Found ${incompletePayments.length} incomplete payments.`);
 
     for (const payment of incompletePayments) {
       const paymentId = payment.identifier;
       const txid = payment.transaction?.txid;
+      const amount = payment.amount;
 
       if (!txid) {
-        console.log(`⚠️ Payment ${paymentId} has no transaction ID yet. You may need to cancel it instead.`);
-        continue;
+        console.log(`[${paymentId}] ⚠️ No TXID. Action: CANCEL (${amount} Pi)`);
+        if (!IS_DRY_RUN) {
+          await axios.post(`https://api.minepi.com/v2/payments/${paymentId}/cancel`, {}, {
+            headers: { 'Authorization': `Key ${PI_API_KEY.trim()}` }
+          });
+          console.log(`   ✅ Cancelled successfully.`);
+        }
+      } else {
+        console.log(`[${paymentId}] 🚀 Found TXID. Action: COMPLETE (${amount} Pi)`);
+        if (!IS_DRY_RUN) {
+          await axios.post(`https://api.minepi.com/v2/payments/${paymentId}/complete`, { txid }, {
+            headers: { 'Authorization': `Key ${PI_API_KEY.trim()}` }
+          });
+          console.log(`   ✅ Completed successfully.`);
+        }
       }
-
-      console.log(`Attempting to complete: ${paymentId}`);
-      
-      // 2. Complete the payment
-      await axios.post(`https://api.minepi.com/v2/payments/${paymentId}/complete`, 
-        { txid: txid },
-        { headers: { Authorization: `Key ${PI_API_KEY}` }}
-      );
-      
-      console.log(`✅ Successfully completed ${paymentId}`);
     }
   } catch (err) {
-    if (err.response) {
-      console.error("Pi API Error:", err.response.status, err.response.data);
-    } else {
-      console.error("Connection Error:", err.message);
-    }
+    console.error("❌ Pi API Error:", err.response?.status, err.response?.data || err.message);
   }
 }
 

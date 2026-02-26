@@ -28,16 +28,27 @@ export const PiAPI = {
         }
 
         try {
+            // 1. Fetch current payment state from Pi Server to retrieve the TXID
+            const { data: paymentData } = await axiosClient.get(`/payments/${paymentId}`);
+            const txid = paymentData.transaction?.txid;
+
+            if (!txid) {
+                console.error(`❌ PiAPI Error: Payment ${paymentId} has no associated transaction ID.`);
+                throw new Error("No TXID found for this payment.");
+            }
+
+            // 2. Complete the payment on Pi servers using the retrieved TXID
             const response = await axiosClient.post(`/payments/${paymentId}/complete`, {
-                txid: null 
+                txid: txid 
             });
+
             return {
                 status: 'SETTLED',
-                txid: response.data.transaction?.txid || 'internal_settlement'
+                txid: response.data.transaction?.txid || txid
             };
         } catch (error: any) {
             console.error("Pi Settlement Error:", error.response?.data || error.message);
-            throw new Error("Failed to settle Pi payment.");
+            throw new Error(`Failed to settle Pi payment: ${error.response?.data?.error_message || error.message}`);
         }
     },
 

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pi Payment Tracer</title>
+    <script src="https://sdk.minepi.com/pi-sdk.js"></script>
+</head>
+<body>
+    <h1>Pi Tracer</h1>
+    <button id="login-btn" style="padding: 10px 20px;">Check for Incomplete Payments</button>
+    <div id="status" style="margin-top: 20px; font-family: monospace;">Status: Ready</div>
+
+    <script>
+        const Pi = window.Pi;
+        // Ensure sandbox is TRUE if testing on Desktop, FALSE if testing inside Pi Browser App
+        Pi.init({ version: "2.0", sandbox: true });
+
+        async function authUser() {
+            updateStatus("Starting Authentication...");
+            const scopes = ['username'];
+
+            // This ONLY fires if Pi thinks a payment is "stuck"
+            function onIncompletePaymentFound(payment) {
+                console.log("CRITICAL: Incomplete Payment Object:", payment);
+                const id = payment.identifier;
+                updateStatus("FOUND ID: " + id);
+                alert("STUCK PAYMENT ID: " + id);
+            };
+
+            try {
+                const auth = await Pi.authenticate(scopes, onIncompletePaymentFound);
+                updateStatus("Auth Success. No incomplete payments were found for this user.");
+                console.log("Auth Object:", auth);
+            } catch (error) {
+                updateStatus("ERROR: " + error.message);
+                console.error("Full Error:", error);
+            }
+        }
+
+        function updateStatus(msg) {
+            document.getElementById('status').innerText = "Status: " + msg;
+        }
+
+        document.getElementById('login-btn').addEventListener('click', authUser);
+    </script>
+</body>
+</html>

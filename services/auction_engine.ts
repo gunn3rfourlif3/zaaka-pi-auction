@@ -9,21 +9,21 @@ export async function handleBidClockExtension(auctionId: number) {
     if (!auction || auction.status !== 'ACTIVE') return;
 
     const now = new Date();
-    const endTime = new Date(auction.end_time);
-    const timeRemaining = endTime.getTime() - now.getTime();
+    const expiryTime = new Date(auction.expires_at);
+    const timeRemaining = expiryTime.getTime() - now.getTime();
 
     // If bid is in the final 60 seconds, extend it
     if (timeRemaining > 0 && timeRemaining < SNIPE_WINDOW_MS) {
-        const newEndTime = new Date(endTime.getTime() + EXTENSION_TIME_MS);
+        const newExpiryTime = new Date(expiryTime.getTime() + EXTENSION_TIME_MS);
         
         await db.auctions.update({
             where: { id: auctionId },
-            data: { end_time: newEndTime }
+            data: { expires_at: newExpiryTime }
         });
 
         // Notify all pioneers in the room of the new time
         io.to(`auction_${auctionId}`).emit('clock_extended', {
-            new_end_time: newEndTime.toISOString(),
+            new_end_time: newExpiryTime.toISOString(),
             message: "🔥 Anti-Sniping: 5 minutes added!"
         });
     }
