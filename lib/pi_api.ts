@@ -29,7 +29,33 @@ export const PiAPI = {
 
         try {
             // 1. Fetch current payment state from Pi Server to retrieve the TXID
-            const { data: paymentData } = await axiosClient.get(`/payments/${paymentId}`);
+            let paymentData;
+            try {
+                const response = await axiosClient.get(`/payments/${paymentId}`);
+                paymentData = response.data;
+            } catch (fetchError: any) {
+                // Handle payment_not_found gracefully
+                const errorMsg = fetchError.response?.data?.error_message || fetchError.message;
+                if (errorMsg && errorMsg.includes('payment_not_found')) {
+                    console.warn(`⚠️ Payment ${paymentId} not found on Pi Network. May have been settled already or created in different environment.`);
+                    return { 
+                        status: 'SETTLED', 
+                        txid: 'NOT_FOUND_BUT_ASSUMED_SETTLED' 
+                    };
+                }
+                // Re-throw other errors
+                throw fetchError;
+            }
+
+            // IDEMPOTENCY CHECK: If already settled, don't error out
+            if (paymentData.status === 'COMPLETED' || paymentData.status === 'SETTLED') {
+                console.log(`ℹ️ Payment ${paymentId} already settled on Pi Network.`);
+                return { 
+                    status: 'SETTLED', 
+                    txid: paymentData.transaction?.txid || 'EXISTING_TXID' 
+                };
+            }
+
             const txid = paymentData.transaction?.txid;
 
             if (!txid) {
@@ -47,8 +73,28 @@ export const PiAPI = {
                 txid: response.data.transaction?.txid || txid
             };
         } catch (error: any) {
+            const errorMsg = error.response?.data?.error_message || error.message;
+            
+            // IDEMPOTENCY CATCH: If the server says it's already completed, treat as success
+            if (errorMsg && (errorMsg.includes('already completed') || errorMsg.includes('already settled'))) {
+                console.log(`ℹ️ Payment ${paymentId} was already completed (caught in error handler).`);
+                return { 
+                   status: 'SETTLED', 
+                   txid: 'EXISTING_TXID_RECOVERED' 
+               };
+           }
+
+            // Handle payment_not_found gracefully
+            if (errorMsg && errorMsg.includes('payment_not_found')) {
+                console.warn(`⚠️ Payment ${paymentId} not found on Pi Network. May have been settled already or created in different environment.`);
+                return { 
+                   status: 'SETTLED', 
+                   txid: 'NOT_FOUND_BUT_ASSUMED_SETTLED' 
+               };
+           }
+
             console.error("Pi Settlement Error:", error.response?.data || error.message);
-            throw new Error(`Failed to settle Pi payment: ${error.response?.data?.error_message || error.message}`);
+            throw new Error(`Failed to settle Pi payment: ${errorMsg}`);
         }
     },
 

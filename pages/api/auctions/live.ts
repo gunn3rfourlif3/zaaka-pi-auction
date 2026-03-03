@@ -6,6 +6,9 @@ export default async function handler(req: any, res: any) {
       include: {
         images: true,
         bids: {
+          orderBy: {
+            created_at: 'desc'
+          },
           select: {
             bidder_id: true,
           }

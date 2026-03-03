@@ -2,9 +2,8 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
+  "/api/http-poll": "pages/api/http-poll.js",
   "/": "pages/index.js",
   "/api/seller/items": "pages/api/seller/items.js",
-  "/api/auctions/bid-check": "pages/api/auctions/bid-check.js",
-  "/api/payments/complete": "pages/api/payments/complete.js",
-  "/api/payments/approve": "pages/api/payments/approve.js"
+  "/api/auctions/live": "pages/api/auctions/live.js"
 }

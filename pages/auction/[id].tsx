@@ -1,12 +1,48 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { ReleaseFundsButton } from '../../components/ReleaseFundsButton';
+import Head from 'next/head';
 
 export default function AuctionDetailPage() {
   const router = useRouter();
   const { id } = router.query;
   const [auction, setAuction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  // Handle real-time bid updates
+  const handleBidUpdate = (data: any) => {
+    if (data && data.auctionId === parseInt(id as string) && data.newBid) {
+      console.log("🎯 Bid update received for auction", id, ":", data);
+      
+      setAuction((prevAuction: any) => {
+        if (!prevAuction) return prevAuction;
+        
+        const updatedAuction = {
+          ...prevAuction,
+          currentBid: data.newBid,
+          _count: {
+            ...prevAuction._count,
+            bids: (prevAuction._count?.bids || 0) + 1
+          },
+          bids: [
+            {
+              id: `bid_${Date.now()}`,
+              amount: data.newBid,
+              bidder_id: data.bidder || 'unknown',
+              created_at: new Date().toISOString()
+            },
+            ...(prevAuction.bids || [])
+          ]
+        };
+        
+        console.log("✅ Updated auction state:", updatedAuction);
+        return updatedAuction;
+      });
+      
+      return true;
+    }
+    return false;
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -24,6 +60,28 @@ export default function AuctionDetailPage() {
     };
 
     getAuctionData();
+
+    // Load bid update handler for real-time updates
+    const loadBidUpdateHandler = () => {
+      if (!document.getElementById('bid-update-handler')) {
+        const script = document.createElement('script');
+        script.id = 'bid-update-handler';
+        script.src = '/bid-update-handler.js';
+        script.onload = () => console.log("✅ Bid update handler loaded for detail view");
+        script.onerror = () => console.log("❌ Could not load bid update handler for detail view");
+        document.body.appendChild(script);
+      }
+    };
+
+    loadBidUpdateHandler();
+
+    // Make handleBidUpdate available globally for external scripts
+    (window as any).handleAuctionDetailBidUpdate = handleBidUpdate;
+
+    // Cleanup function
+    return () => {
+      delete (window as any).handleAuctionDetailBidUpdate;
+    };
   }, [id]);
 
   if (loading) {
@@ -39,7 +97,11 @@ export default function AuctionDetailPage() {
   }
 
   return (
-    <div style={{ maxWidth: '500px', margin: '40px auto', padding: '24px', fontFamily: 'sans-serif', color: '#1A1D21' }}>
+    <>
+      <Head>
+        <link rel="stylesheet" href="/bid-update-styles.css" />
+      </Head>
+      <div style={{ maxWidth: '500px', margin: '40px auto', padding: '24px', fontFamily: 'sans-serif', color: '#1A1D1F' }}>
       
       {/* HEADER SECTION */}
       <h1 style={{ fontSize: '28px', fontWeight: '900', marginBottom: '8px', fontStyle: 'italic', textTransform: 'uppercase', letterSpacing: '-1px' }}>
@@ -53,11 +115,11 @@ export default function AuctionDetailPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
         <div style={{ padding: '20px', background: '#F8F9FB', borderRadius: '24px', border: '1px solid #F0F0F0' }}>
           <p style={{ fontSize: '10px', fontWeight: 'bold', color: '#A0A0A0', textTransform: 'uppercase', margin: '0 0 4px 0', letterSpacing: '1px' }}>Current Price</p>
-          <p style={{ fontSize: '22px', fontWeight: '900', color: '#10b981', margin: 0 }}>{Number(auction.currentBid).toFixed(2)} π</p>
+          <p className="bid-amount" data-auction-id={auction.id} style={{ fontSize: '22px', fontWeight: '900', color: '#10b981', margin: 0 }}>{Number(auction.currentBid).toFixed(2)} π</p>
         </div>
         <div style={{ padding: '20px', background: '#F8F9FB', borderRadius: '24px', border: '1px solid #F0F0F0' }}>
           <p style={{ fontSize: '10px', fontWeight: 'bold', color: '#A0A0A0', textTransform: 'uppercase', margin: '0 0 4px 0', letterSpacing: '1px' }}>Total Bids</p>
-          <p style={{ fontSize: '22px', fontWeight: '900', margin: 0 }}>{auction._count?.bids || 0}</p>
+          <p className="bid-count" data-auction-id={auction.id} style={{ fontSize: '22px', fontWeight: '900', margin: 0 }}>{auction._count?.bids || 0}</p>
         </div>
       </div>
 
@@ -108,14 +170,15 @@ export default function AuctionDetailPage() {
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {auction.bids.map((bid: any) => (
-              <div key={bid.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div key={bid.id} className="bid-history-item" data-auction-id={auction.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: '14px', fontWeight: '700', color: '#1A1D21' }}>@{bid.bidder_id}</span>
-                <span style={{ fontSize: '14px', fontWeight: '900', color: '#10B981' }}>{Number(bid.amount).toFixed(2)} π</span>
+                <span className="bid-history-amount" style={{ fontSize: '14px', fontWeight: '900', color: '#10B981' }}>{Number(bid.amount).toFixed(2)} π</span>
               </div>
             ))}
           </div>
         </div>
       )}
     </div>
+    </>
   );
 }

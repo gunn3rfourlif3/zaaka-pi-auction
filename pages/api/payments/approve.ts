@@ -7,14 +7,31 @@ if (req.method !== 'POST') {
 return res.status(405).json({ message: 'Method Not Allowed' });
 }
 
-const { paymentId } = req.body;
+const { paymentId, auctionId: debugAuctionId } = req.body;
 
-if (!paymentId) {
-return res.status(400).json({ error: "No paymentId provided" });
-}
+  if (!paymentId) {
+    return res.status(400).json({ error: "No paymentId provided" });
+  }
 
-try {
-// 2. Fetch payment details from Pi Servers to get the metadata
+  // --- MOCK BYPASS ---
+   if (paymentId.startsWith('pay_mock_') || paymentId.startsWith('mock_')) {
+     console.log(`🛠️ API: Mock Approval for ${paymentId}`);
+    
+    // Validate auction existence even in mock mode
+    if (debugAuctionId) {
+       const auction = await prisma.auctions.findUnique({ 
+         where: { id: parseInt(debugAuctionId) } 
+       });
+       if (!auction || auction.status !== 'OPEN') {
+         return res.status(400).json({ error: "Auction no longer available" });
+       }
+    }
+    
+    return res.status(200).json({ approved: true, mock: true });
+  }
+
+  try {
+    // 2. Fetch payment details from Pi Servers to get the metadata
 const piRes = await fetch(`https://api.minepi.com/v2/payments/${paymentId}`, {headers: { 'Authorization': `Key ${process.env.PI_API_KEY}` }});
 
 if (!piRes.ok) {

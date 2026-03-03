@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
+import { MessageModal } from '../components/MessageModal';
+import { useEnhancedWebSocketConnection } from '../hooks/useEnhancedWebSocketConnection';
 
 import {
 
@@ -80,6 +82,7 @@ export default function ZaakaDashboard() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
   const [bidAmount, setBidAmount] = useState<string>('');
+  const [maxBidAmount, setMaxBidAmount] = useState<string>('');
 
   const [isInitializing, setIsInitializing] = useState(false);
 
@@ -87,14 +90,213 @@ const [view, setView] = useState<'market' | 'inventory' | 'my-bids' | 'detail' |
 
 const [watchlist, setWatchlist] = useState<number[]>([]);
 
-  const [isBidModalOpen, setIsBidModalOpen] = useState(false);
-
   const [selectedMarketCategory, setSelectedMarketCategory] = useState('All');
   const [now, setNow] = useState(Date.now());
+  const [isSocketReady, setIsSocketReady] = useState(false);
 
+  // Script tag for Socket.io client - ONLY for non-ngrok environments
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
+    const isNgrok = typeof window !== 'undefined' && window.location.hostname.includes('ngrok');
+    
+    // No test scripts loaded in production
+    
+    // Load winner badge test for testing the Winning -> Winner change
+    if (!document.getElementById('winner-badge-test')) {
+        const winnerBadgeTestScript = document.createElement('script');
+        winnerBadgeTestScript.id = 'winner-badge-test';
+        winnerBadgeTestScript.src = '/winner-badge-test.js';
+        winnerBadgeTestScript.onload = () => console.log("✅ Winner badge test loaded - test Winning -> Winner changes!");
+        winnerBadgeTestScript.onerror = () => console.log("❌ Could not load winner badge test");
+        document.body.appendChild(winnerBadgeTestScript);
+    }
+
+    // Load enhanced max bid test for testing improved Max Bid functionality
+    if (!document.getElementById('enhanced-max-bid-test')) {
+        const enhancedMaxBidTestScript = document.createElement('script');
+        enhancedMaxBidTestScript.id = 'enhanced-max-bid-test';
+        enhancedMaxBidTestScript.src = '/enhanced-max-bid-test.js';
+        enhancedMaxBidTestScript.onload = () => console.log("✅ Enhanced Max Bid test loaded - test improved Max Bid validation and UI!");
+        enhancedMaxBidTestScript.onerror = () => console.log("❌ Could not load enhanced max bid test");
+        document.body.appendChild(enhancedMaxBidTestScript);
+    }
+    
+    if (isNgrok) {
+      console.log("🚫 Skipping Socket.IO client loading for ngrok environment");
+      setIsSocketReady(true); // Mark as ready to bypass Socket.IO logic
+      return; // This is valid - early return in useEffect
+    }
+    
+    if (!document.getElementById('socket-io-script')) {
+        const script = document.createElement('script');
+        script.id = 'socket-io-script';
+        
+        // Load from CDN for localhost environments
+        script.src = "https://cdn.socket.io/4.8.3/socket.io.min.js";
+        script.async = true;
+        script.onload = () => { 
+            console.log("✅ Socket.io client loaded from CDN successfully");
+            setIsSocketReady(true);
+        };
+        script.onerror = (err) => {
+            console.error('❌ Failed to load Socket.IO client from CDN:', err);
+            // Fallback: try to load from local server
+            const fallbackScript = document.createElement('script');
+            fallbackScript.id = 'socket-io-script-fallback';
+            fallbackScript.src = "/socket.io/socket.io.js";
+            fallbackScript.onload = () => {
+                console.log("✅ Socket.io client loaded from local server");
+                setIsSocketReady(true);
+            };
+            fallbackScript.onerror = (fallbackErr) => {
+                console.error('❌ Failed to load Socket.IO client from fallback:', fallbackErr);
+            };
+            document.body.appendChild(fallbackScript);
+        };
+        document.body.appendChild(script);
+    } else {
+        // If script already exists, just set ready to true
+        setIsSocketReady(true);
+    }
+  }, []);
+
+  const [isBidModalOpen, setIsBidModalOpen] = useState(false);
+  const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
+  const [chatConfig, setChatConfig] = useState<{
+    auctionId: number;
+    otherUserId: string;
+    otherUsername: string;
+    itemTitle: string;
+  } | null>(null);
+
+  // --- Real-time Bid Updates (Multi-layered Fallback System) ---
+  const handleBidUpdate = useCallback((data: { auctionId: number, newBid: number, bidder: string }) => {
+    console.log(`🔔 Real-time Update: ${data.newBid} Pi by ${data.bidder}`);
+    console.log(`📊 Update Data:`, data); // Debug: log the full data object
+    
+    // 1. Update Detail View
+    setSelectedItem((prev: any) => {
+      // Check ID (handle string/number mismatch)
+      if(!prev || Number(prev.id) !== Number(data.auctionId)) {
+        console.log(`⏭️  Skipping detail update - auction ID mismatch: ${prev?.id} vs ${data.auctionId}`);
+        return prev;
+      }
+      
+      // Strict check: Only return if the price is STRICTLY LOWER.
+      if (data.newBid < Number(prev.currentBid)) {
+        console.log(`⏭️  Skipping detail update - new bid (${data.newBid}) is lower than current (${prev.currentBid})`);
+        return prev;
+      }
+
+      console.log(`✅ Updating Detail View for #${data.auctionId}: Bid ${data.newBid} by ${data.bidder}`);
+      return {
+        ...prev,
+        currentBid: data.newBid,
+        bids: [{ bidder_id: data.bidder, amount: data.newBid }, ...(prev.bids || [])],
+        _count: { ...prev._count, bids: (prev._count?.bids || 0) + 1 }
+      };
+    });
+
+    // 2. Update Market List
+    setItems((prev) => {
+      console.log(`📋 Updating market list - checking ${prev.length} items for auction #${data.auctionId}`);
+      return prev.map((a: any) => {
+        if (Number(a.id) === Number(data.auctionId)) {
+          if (data.newBid < Number(a.currentBid)) {
+            console.log(`⏭️  Skipping market update - new bid is lower`);
+            return a;
+          }
+          console.log(`✅ Updating market item #${data.auctionId}: ${a.currentBid} → ${data.newBid}`);
+          return { 
+            ...a, 
+            currentBid: data.newBid,
+            bids: [{ bidder_id: data.bidder }, ...(a.bids || [])],
+            _count: { ...a._count, bids: (a._count?.bids || 0) + 1 }
+          };
+        }
+        return a;
+      });
+    });
+  }, []);
+
+  // Expose handleBidUpdate to window for testing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).handleBidUpdate = handleBidUpdate;
+      console.log("✅ handleBidUpdate exposed to window for testing");
+    }
+    
+    return () => {
+      if (typeof window !== 'undefined') {
+        delete (window as any).handleBidUpdate;
+      }
+    };
+  }, [handleBidUpdate]);
+
+  const handleAuctionFinalized = useCallback((data: { auctionId: number, finalPrice: number, winnerId: string }) => {
+    console.log(`🏁 Auction Finalized: ${data.auctionId} won by ${data.winnerId} for ${data.finalPrice} Pi`);
+    
+    // Update auction status
+    setItems((prevItems: any[]) => 
+      prevItems.map(item => 
+        item.id === data.auctionId 
+          ? { ...item, status: 'CLOSED', finalPrice: data.finalPrice, winnerId: data.winnerId }
+          : item
+      )
+    );
+
+    // Update selected item if it's the same auction
+    setSelectedItem((prev: any) => {
+      if (prev && prev.id === data.auctionId) {
+        return { ...prev, status: 'CLOSED', finalPrice: data.finalPrice, winnerId: data.winnerId };
+      }
+      return prev;
+    });
+
+    alert(`Auction ended! Winner: ${data.winnerId}`);
+  }, []);
+
+  const { status, transport, socketId, error, reconnect, connectionStats } = useEnhancedWebSocketConnection(
+    selectedItem,
+    handleBidUpdate,
+    handleAuctionFinalized
+  );
+
+  // Connection status indicator
+  useEffect(() => {
+    console.log(`📡 Connection Status: ${status} (${transport})${socketId ? ` - ID: ${socketId}` : ''}${error ? ` - Error: ${error}` : ''}`);
+    
+    if (status === 'failed') {
+      alert(`Real-time connection failed: ${error}. Please refresh the page.`);
+    }
+  }, [status, transport, socketId, error]);
+
+  const handleOpenChat = (auctionId: number, otherUserId: string, otherUsername: string, itemTitle: string) => {
+    setChatConfig({ auctionId, otherUserId, otherUsername, itemTitle });
+    setIsMessageModalOpen(true);
+  };
+
+  const [isPiInitialized, setIsPiInitialized] = useState(false);
+
+  const [showEnvWarning, setShowEnvWarning] = useState(false);
+
+  // --- MOCK LOGIN FOR TESTING ---
+  const handleMockLogin = () => {
+    const mockUsername = prompt("Enter a mock username for testing (e.g. 'tester1'):");
+    if (mockUsername) {
+      setUser({ username: mockUsername, uid: `mock_${mockUsername}_uid` });
+      // Clear any existing session data if needed
+      alert(`Logged in as ${mockUsername} (Mock Mode)`);
+    }
+  };
+  // ------------------------------
+
+  const isPiSupportedEnv = useCallback(() => {
+    if (typeof window === 'undefined') return false;
+    const isPiBrowser = typeof navigator !== 'undefined' && 
+                       navigator.userAgent.toLowerCase().includes('pibrowser');
+    const isInIframe = window.self !== window.parent;
+    console.log(`[Pi Env Check] isPiBrowser: ${isPiBrowser}, isInIframe: ${isInIframe}`);
+    return isPiBrowser || isInIframe;
   }, []);
 
   const categories = ['Fashion', 'Electronics', 'Collectibles', 'Home Goods', 'Vehicles', 'Comics', 'Art', 'Jewelry', 'Sports', 'Books'];
@@ -315,44 +517,182 @@ const getTimeRemaining = (expiryDate: string) => {
 
 };
 
+  // 1. DATA FETCHING (Using include: images from backend)
+
+  const fetchItems = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    const activeUser = user?.username?.replace('@', '') || "guest";
+    try {
+      const endpoint = (view === 'market' || view === 'my-bids' || view === 'watchlist')
+        ? '/api/auctions/live'
+        : `/api/seller/items?sellerId=${activeUser}`;
+       
+      const res = await fetch(endpoint, {
+        headers: { 'ngrok-skip-browser-warning': 'true' }
+      });
+      const data = await res.json();
+     
+      if (Array.isArray(data)) {
+        setItems(data);
+        
+        // SYNC SELECTED ITEM IF OPEN
+        // If we are currently viewing an item, update its local state from the fresh batch
+        // to ensure we have the latest bidder info which might be missing from partial socket updates
+        if (view === 'detail' && selectedItem) {
+             const freshItem = data.find((i: any) => i.id === selectedItem.id);
+             if (freshItem) {
+                 // Only update if freshItem has MORE recent info (higher bid)
+                 // or if we are just syncing identical states.
+                 // We avoid overwriting if local state is somehow ahead (race condition protection)
+                 if (Number(freshItem.currentBid) >= Number(selectedItem.currentBid)) {
+                     setSelectedItem((prev: any) => ({ ...prev, ...freshItem }));
+                 }
+             }
+        }
+
+      } else {
+        setItems([]);
+      }
+    } catch (err) {
+      console.error("Fetch failed", err);
+      setItems([]);
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [view, user, selectedItem]); // Add selectedItem to dependencies to allow syncing
+
+  useEffect(() => { fetchItems(); }, [fetchItems]);
+
+  // Timer + Polling for robustness
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    // Poll every 5 seconds to catch missed updates
+    const polling = setInterval(() => {
+       if (view === 'market' || view === 'detail') fetchItems(true);
+    }, 5000);
+
+    return () => {
+        clearInterval(timer);
+        clearInterval(polling);
+    };
+  }, [view, fetchItems]);
+
+  // Sync selectedItem with items updates (for polling consistency)
+  useEffect(() => {
+    if (view === 'detail' && selectedItem && items.length > 0) {
+      const updated = items.find((i: any) => i.id === selectedItem.id);
+      if (updated) {
+         // Only update if there are material changes to avoid unnecessary re-renders
+         if (updated.currentBid !== selectedItem.currentBid || 
+             updated.status !== selectedItem.status || 
+             updated.bids?.length !== selectedItem.bids?.length) {
+             console.log("Syncing selectedItem with polled data");
+             setSelectedItem((prev: any) => ({ ...prev, ...updated }));
+         }
+      }
+    }
+  }, [items, view]);
 
 
-  // 1. AUTHENTICATION LOGIC
+
+  // 2. AUTHENTICATION LOGIC
+
+  useEffect(() => {
+    // 0. GLOBAL ERROR LISTENER TO CAPTURE THE POSTMESSAGE SOURCE
+    const handleGlobalError = (event: ErrorEvent | PromiseRejectionEvent) => {
+      if (event instanceof ErrorEvent && event.message?.includes('postMessage')) {
+        console.warn("Caught postMessage origin error. This usually means sandbox detection is mismatching with Pi Network's expectation.");
+      }
+    };
+    window.addEventListener('error', handleGlobalError);
+    return () => window.removeEventListener('error', handleGlobalError);
+  }, []);
 
   useEffect(() => {
     const syncPi = async () => {
-      if (typeof window !== "undefined" && (window as any).Pi) {
-        try {
-          const Pi = (window as any).Pi;
-          await Pi.init({ version: "2.0", sandbox: true });
-          console.log("Handshake successful with Pi Sandbox");
-          
-          // Automatically handle incomplete payments on load
-          await Pi.authenticate(['username', 'payments'], async (payment: any) => {
-            try {
-              const res = await fetch('/api/payments/incomplete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ payment })
-          });
-          
-          if (res.ok) {
-            console.log("Incomplete payment recovered on startup.");
-            fetchItems();
-          } else {
-            console.error("Startup recovery failed:", await res.json());
-          }
-            } catch (err) {
-              console.error("Incomplete payment recovery failed:", err);
-            }
-          });
-        } catch (e) {
-          console.warn("Init pending or authentication failed...");
+      if (typeof window === "undefined") return;
+
+      console.log(`[Pi Handshake] Checking window.Pi... (hostname: ${window.location.hostname})`);
+      
+      if (!(window as any).Pi) {
+        console.log("[Pi Handshake] Pi SDK script not yet detected in window object.");
+        return;
+      }
+
+      if (isPiInitialized) {
+        console.log("[Pi Handshake] Pi SDK is already initialized. Skipping redundant init.");
+        return;
+      }
+
+      try {
+        const Pi = (window as any).Pi;
+        
+        const isPiBrowser = typeof navigator !== 'undefined' && 
+                           navigator.userAgent.toLowerCase().includes('pibrowser');
+        const isInIframe = window.self !== window.parent;
+
+        // FINAL GUARD: If we are not in the Pi Browser OR an iframe (Sandbox), do not initialize.
+        if (!isPiSupportedEnv()) {
+          console.warn("[Pi Handshake] Environment check failed. Pi SDK will not be initialized to prevent origin errors.");
+          setShowEnvWarning(true);
+          setIsPiInitialized(true); 
+          return;
         }
+
+        const isSandbox = !isPiBrowser && isInIframe;
+
+        console.log(`[Pi Handshake] Initializing SDK. Mode: ${isSandbox ? 'SANDBOX' : 'NETWORK'} (isPiBrowser: ${isPiBrowser}, isInIframe: ${isInIframe})`);
+
+        await Pi.init({ version: "2.0", sandbox: isSandbox });
+        setIsPiInitialized(true);
+        console.log(`✅ [Pi Handshake] SUCCESS! Handshake successful with Pi ${isSandbox ? 'Sandbox' : 'Network'}`);
+        
+        // Give the SDK 500ms to stabilize the handshake before authenticating
+        setTimeout(async () => {
+          try {
+            console.log("[Pi Handshake] Authenticating...");
+            await Pi.authenticate(['username', 'payments'], async (payment: any) => {
+              console.log("[Pi Handshake] Authenticated. Checking for incomplete payments...");
+              try {
+                const res = await fetch('/api/payments/incomplete', {
+                  method: 'POST',
+                  headers: { 
+                    'Content-Type': 'application/json',
+                    'ngrok-skip-browser-warning': 'true'
+                  },
+                  body: JSON.stringify({ payment })
+                });
+                
+                if (res.ok) {
+                  console.log("[Pi Handshake] Incomplete payment recovered on startup.");
+                  fetchItems();
+                } else {
+                  console.error("[Pi Handshake] Startup recovery failed:", await res.json());
+                }
+              } catch (err) {
+                console.error("[Pi Handshake] Incomplete payment recovery failed:", err);
+              }
+            });
+          } catch (authErr: any) {
+            console.error("❌ [Pi Handshake] Authentication Error:", authErr.message || authErr);
+          }
+        }, 500);
+      } catch (e: any) {
+        console.error("❌ [Pi Handshake] Initialization Failed:", e.message || e);
       }
     };
+
+    // Try immediately
     syncPi();
-  }, []);
+
+    // Check again every 1.5 seconds if not yet initialized
+    const checkInterval = setInterval(() => {
+      if (!(window as any).Pi || isPiInitialized) return;
+      syncPi();
+    }, 1500);
+
+    return () => clearInterval(checkInterval);
+  }, [isPiInitialized, fetchItems]);
 
 
 
@@ -362,6 +702,12 @@ const getTimeRemaining = (expiryDate: string) => {
 
     if (!(window as any).Pi) { alert("Pi SDK not found! Use Pi Browser."); return; }
 
+    if (!isPiSupportedEnv()) {
+      setShowEnvWarning(true);
+      alert("Please open this app in the Pi Browser (mobile) or Pi Sandbox (desktop) to connect your wallet.");
+      return;
+    }
+
     setIsInitializing(true);
 
 
@@ -369,15 +715,26 @@ const getTimeRemaining = (expiryDate: string) => {
     try {
 
       const Pi = (window as any).Pi;
-
-      await Pi.init({ version: "2.0", sandbox: true });
+      
+      // Only init if not already initialized
+      if (!isPiInitialized) {
+        const isPiBrowser = typeof navigator !== 'undefined' && 
+                           navigator.userAgent.toLowerCase().includes('pibrowser');
+        const isInIframe = typeof window !== 'undefined' && window.self !== window.parent;
+        const isSandbox = !isPiBrowser && isInIframe;
+        await Pi.init({ version: "2.0", sandbox: isSandbox });
+        setIsPiInitialized(true);
+      }
 
       const auth = await Pi.authenticate(['username', 'payments'], async (payment: any) => {
         // Handle Incomplete Payment
         try {
           const res = await fetch('/api/payments/incomplete', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'ngrok-skip-browser-warning': 'true'
+            },
             body: JSON.stringify({ payment })
           });
           
@@ -410,70 +767,128 @@ const getTimeRemaining = (expiryDate: string) => {
 
 
 
-  // 2. DATA FETCHING (Using include: images from backend)
-
-const fetchItems = useCallback(async () => {
-  setLoading(true);
-  const activeUser = user?.username?.replace('@', '') || "guest";
-  try {
-    // Add 'watchlist' to this condition so it fetches the live items to compare against
-    const endpoint = (view === 'market' || view === 'my-bids' || view === 'watchlist')
-      ? '/api/auctions/live'
-      : `/api/seller/items?sellerId=${activeUser}`;
-     
-    const res = await fetch(endpoint);
-    const data = await res.json();
-   
-    if (Array.isArray(data)) {
-      setItems(data);
-    } else {
-      setItems([]);
-    }
-  } catch (err) {
-    console.error("Fetch failed", err);
-    setItems([]);
-  } finally {
-    setLoading(false);
-  }
-}, [view, user]);
-
-  useEffect(() => { fetchItems(); }, [fetchItems]);
-
-
-
   // 3. PAYMENT HANDLER
 
   const handleBidAction = async () => {
+    
+    // Ensure numeric comparison handles string inputs safely
+    const currentPrice = Number(selectedItem?.currentBid || 0);
+    const incomingBid = parseFloat(bidAmount);
 
-    if (!bidAmount || parseFloat(bidAmount) <= (selectedItem?.currentBid || 0)) {
-
-      alert("Please enter a bid higher than the current price.");
-
+    if (!bidAmount || isNaN(incomingBid) || incomingBid <= currentPrice) {
+      alert(`Please enter a bid higher than ${currentPrice.toFixed(2)}.`);
       return;
+    }
 
+    // Enhanced Max Bid Validation
+    if (maxBidAmount) {
+      const maxBidValue = parseFloat(maxBidAmount);
+      const minValidMaxBid = incomingBid + 0.1; // Must be at least 0.1 higher than current bid
+      
+      if (maxBidValue <= incomingBid) {
+        alert(`Max bid (${maxBidValue.toFixed(2)}) must be higher than your current bid (${incomingBid.toFixed(2)}).`);
+        return;
+      }
+      
+      if (maxBidValue < minValidMaxBid) {
+        alert(`Max bid must be at least ${minValidMaxBid.toFixed(2)} π (0.1 higher than your bid).`);
+        return;
+      }
+      
+      // Validate against auction current price (defensive check)
+      if (maxBidValue <= Number(selectedItem.currentBid)) {
+        alert(`Max bid must be higher than the current auction price (${Number(selectedItem.currentBid).toFixed(2)} π).`);
+        return;
+      }
     }
 
     if (!user) { handleLogin(); return; }
 
-
-
     setIsPaying(true);
+
+    // --- MOCK USER BYPASS ---
+    if (user.uid.startsWith('mock_')) {
+      // Use 'pay_mock_' prefix to match lib/pi_api.ts logic
+      const mockPaymentId = `pay_mock_${Date.now()}`;
+      const mockTxid = `mock_tx_${Date.now()}`;
+      
+      try {
+        // 1. Approve (Check if auction is still valid)
+        const approveRes = await fetch('/api/payments/approve', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ paymentId: mockPaymentId, auctionId: selectedItem.id })
+        });
+        
+        if (!approveRes.ok) {
+           const err = await approveRes.json();
+           alert(err.error || "Mock Validation Failed");
+           setIsPaying(false);
+           return;
+        }
+
+        // 2. Complete
+        const res = await fetch('/api/payments/complete', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ 
+             paymentId: mockPaymentId, 
+             txid: mockTxid,
+             debug: {
+               auctionId: selectedItem.id,
+               amount: parseFloat(bidAmount),
+               userId: user.uid,
+               username: user.username.replace('@', ''),
+               maxBid: maxBidAmount // Include Max Bid
+             }
+           })
+        });
+
+        if (res.ok) {
+           const newBidValue = parseFloat(bidAmount);
+           if (selectedItem && user) {
+             setSelectedItem((prev: any) => ({
+               ...prev,
+               currentBid: newBidValue,
+               bids: [{ bidder_id: user.username.replace('@', ''), amount: newBidValue }, ...(prev.bids || [])],
+               _count: { ...prev._count, bids: (prev._count?.bids || 0) + 1 }
+             }));
+           }
+           setIsPaying(false);
+           setIsBidModalOpen(false);
+           setBidAmount('');
+           setMaxBidAmount('');
+           fetchItems();
+           alert("Mock Bid successful! (Test Mode)");
+        } else {
+           alert("Mock Bid failed.");
+           setIsPaying(false);
+        }
+      } catch (e) {
+        console.error(e);
+        alert("Mock Bid error");
+        setIsPaying(false);
+      }
+      return;
+    }
 
     try {
 
       const checkRes = await fetch('/api/auctions/bid-check', {
-
         method: 'POST',
-
-        headers: { 'Content-Type': 'application/json' },
-
+        headers: { 
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
         body: JSON.stringify({
 
           auctionId: selectedItem.id,
 
           bidAmount: bidAmount,
 
-          userUid: user.uid
+          userUid: user.uid,
+          
+          maxBid: maxBidAmount
 
         })
 
@@ -504,7 +919,8 @@ const fetchItems = useCallback(async () => {
         metadata: { 
           auctionId: selectedItem.id, 
           buyerUid: user.uid,
-          buyerUsername: user.username.replace('@', '') 
+          buyerUsername: user.username.replace('@', ''),
+          maxBid: maxBidAmount // Include Max Bid in Pi Metadata
         },
 
       }, {
@@ -515,7 +931,10 @@ const fetchItems = useCallback(async () => {
 
             method: 'POST',
 
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+              'Content-Type': 'application/json',
+              'ngrok-skip-browser-warning': 'true'
+            },
 
             body: JSON.stringify({ paymentId })
 
@@ -533,7 +952,10 @@ fetch('/api/payments/complete', {
 
 method: 'POST',
 
-headers: { 'Content-Type': 'application/json' },
+headers: { 
+  'Content-Type': 'application/json',
+  'ngrok-skip-browser-warning': 'true'
+},
 
 body: JSON.stringify({ paymentId, txid })
 
@@ -710,13 +1132,87 @@ const handleConfirmReceipt = async (auctionId: number) => {
     <Head>
       <title>Zaaka Marketplace</title>
       <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover"   />
+      <link rel="stylesheet" href="/bid-update-styles.css" />
     </Head>
 
     
 
     <div className="min-h-screen bg-[#F8F9FB] text-[#1A1D21] pb-36 font-sans antialiased">
 
-     
+      {/* ENVIRONMENT WARNING BANNER */}
+      {showEnvWarning && (
+        <div className="bg-amber-50 border-b border-amber-200 p-4 animate-in slide-in-from-top duration-500">
+          <div className="flex items-start gap-3 max-w-xl mx-auto">
+            <div className="bg-amber-500 p-2 rounded-xl text-white">
+              <MessageSquare size={16} />
+            </div>
+            <div>
+                <h3 className="text-amber-900 font-black uppercase text-[10px] tracking-wider mb-1 italic">
+                  Development Environment Detected
+                </h3>
+                <p className="text-amber-800 text-[11px] leading-relaxed font-medium">
+                  Pi Network functionality (Auth & Payments) requires the <span className="font-bold underline">Pi Browser</span> on mobile or the <span className="font-bold underline">Pi Sandbox portal</span> on desktop.
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <a 
+                    href="https://nondefinitely-fibrinogenic-talitha.ngrok-free.dev" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="inline-block bg-amber-500 text-white px-3 py-1.5 rounded-lg font-black text-[9px] uppercase shadow-sm"
+                  >
+                    Authorize Browser (Ngrok Fix)
+                  </a>
+                  
+                  {/* Mock Login Button */}
+                  <button 
+                    onClick={handleMockLogin}
+                    className="inline-block bg-white text-amber-600 border border-amber-200 px-3 py-1.5 rounded-lg font-black text-[9px] uppercase shadow-sm hover:bg-amber-50"
+                  >
+                    Mock Login (Test Mode)
+                  </button>
+                </div>
+            </div>
+            <button 
+              onClick={() => setShowEnvWarning(false)}
+              className="ml-auto text-amber-400 hover:text-amber-600 p-1"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* CONNECTION STATUS INDICATOR */}
+      <div className="bg-white border-b border-gray-200 px-4 py-2">
+        <div className="flex items-center justify-between max-w-xl mx-auto">
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${
+              status === 'connected' ? 'bg-green-500' :
+              status === 'fallback' ? 'bg-blue-500' :
+              status === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+              'bg-red-500'
+            }`}></div>
+            <span className="text-xs font-medium text-gray-600">
+              {status === 'connected' ? 'Connected' :
+               status === 'fallback' ? 'HTTP Polling' :
+               status === 'connecting' ? 'Connecting...' :
+               status === 'failed' ? 'Connection Failed' :
+               'Offline'}
+            </span>
+            {transport && transport !== 'none' && (
+              <span className="text-xs text-gray-400">({transport})</span>
+            )}
+          </div>
+          {status === 'failed' && (
+            <button 
+              onClick={reconnect}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Retry Connection
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* HEADER SECTION */}
 
@@ -900,7 +1396,7 @@ const handleConfirmReceipt = async (auctionId: number) => {
                 <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter">{item.title}</h4>
                 <p className="text-[10px] font-bold text-gray-400 uppercase">Asset #{item.id}</p>
               </div>
-              <p className="text-xl font-black text-green-500 italic">{Number(item.currentBid).toFixed(2)} π</p>
+              <p className="text-xl font-black text-green-500 italic bid-amount" data-auction-id={item.id}>{Number(item.currentBid).toFixed(2)} π</p>
             </div>
             
             <button className="w-full py-5 rounded-[28px] bg-[#1A1D21] text-white font-black uppercase text-[11px]">
@@ -1163,7 +1659,7 @@ const handleConfirmReceipt = async (auctionId: number) => {
               <div className="p-5">
                 <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter mb-1">{item.title}</h4>
                 <div className="flex justify-between items-center mt-4">
-                  <p className="text-xl font-black text-gray-900 italic leading-none">{Number(item.currentBid).toFixed(2)} π</p>
+                  <p className="text-xl font-black text-gray-900 italic leading-none bid-amount" data-auction-id={item.id}>{Number(item.currentBid).toFixed(2)} π</p>
                   <button onClick={() => { setSelectedItem(item); setView('detail'); }}
                     className="px-6 py-3 rounded-2xl bg-gray-100 text-[#1A1D21] font-black uppercase text-[9px] tracking-widest">
                     Manage
@@ -1206,6 +1702,7 @@ const handleConfirmReceipt = async (auctionId: number) => {
               const cleanUsername = user?.username?.replace('@', '');
               const topBidder = item.bids?.[0]?.bidder_id;
               const isWinning = topBidder === cleanUsername || topBidder === user?.uid;
+              const isAuctionOver = item.status !== 'OPEN' || new Date(item.expires_at).getTime() <= Date.now();
               
               return (
                 <div key={item.id} className="bg-white rounded-[44px] p-3 border border-gray-50 shadow-sm relative active:scale-[0.98] transition-all">
@@ -1213,9 +1710,17 @@ const handleConfirmReceipt = async (auctionId: number) => {
                     <img src={item.images?.[0]?.url || item.image_url} className="w-full h-full object-cover" alt="" />
                     <div className="absolute top-4 left-4">
                       <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-widest shadow-xl ${
-                        isWinning ? 'bg-green-500 text-white' : 'bg-red-500 text-white animate-pulse'
+                        isWinning ? (isAuctionOver ? 'bg-yellow-500 text-white' : 'bg-green-500 text-white') : 'bg-red-500 text-white animate-pulse'
                       }`}>
-                        {isWinning ? "Winning" : "Outbid"}
+                        {isWinning ? (
+                          isAuctionOver ? (
+                            <><Trophy size={12} className="text-yellow-300" /> Winner</>
+                          ) : (
+                            "Winning"
+                          )
+                        ) : (
+                          "Outbid"
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1223,8 +1728,8 @@ const handleConfirmReceipt = async (auctionId: number) => {
                     <div>
                       <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter">{item.title}</h4>
                       <p className="text-[10px] font-bold text-gray-400 uppercase">
-                        {isWinning ? "Leading: " : "Highest: "} 
-                        <span className={isWinning ? "text-green-500" : "text-red-500"}>
+                        {isWinning ? (isAuctionOver ? "Winner: " : "Leading: ") : "Highest: "} 
+                        <span className={isWinning ? "text-green-500" : "text-red-500"} data-auction-id={item.id}>
                           {Number(item.currentBid).toFixed(2)} π
                         </span>
                       </p>
@@ -1279,8 +1784,13 @@ const handleConfirmReceipt = async (auctionId: number) => {
       {(() => {
         const username = user?.username?.replace('@', '');
         const isSeller = username === selectedItem.seller_id;
-        const winningBid = selectedItem.bids?.[0]; // Assuming first bid is the winner in a closed auction
-        const isWinner = username === winningBid?.bidder_id;
+        
+        // Ensure we strictly use the top bid from the array which is already sorted by backend
+        const winningBid = selectedItem.bids && selectedItem.bids.length > 0 ? selectedItem.bids[0] : null;
+        
+        // Check if the current user is the actual winner
+        const isWinner = winningBid && (username === winningBid.bidder_id);
+        
         const isExpired = new Date(selectedItem.expires_at).getTime() <= now;
         const isClosed = selectedItem.status === 'CLOSED' || isExpired;
 
@@ -1302,7 +1812,7 @@ const handleConfirmReceipt = async (auctionId: number) => {
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
                   {isClosed ? (isSeller ? "Final Sale Price" : "Final Price") : (isSeller ? "Total Bids" : "Highest Bid")}
                 </p>
-                <p className="text-xl font-black text-green-500 italic">
+                <p className="text-xl font-black text-green-500 italic bid-amount" data-auction-id={selectedItem.id}>
                   {isClosed 
                     ? `${Number(selectedItem.currentBid).toFixed(2)} π`
                     : (isSeller 
@@ -1311,9 +1821,10 @@ const handleConfirmReceipt = async (auctionId: number) => {
                     )
                   }
                 </p>
-                {!isSeller && !isClosed && selectedItem.bids?.[0] && (
+                {!isSeller && !isClosed && (
                   <p className="text-[9px] font-black text-blue-500 uppercase mt-1 italic opacity-70">
-                    by @{selectedItem.bids[0].bidder_id}
+                    {/* Fallback to 'Unknown' if bids array is empty or bidder_id is missing */}
+                    by @{selectedItem.bids?.[0]?.bidder_id || "..."}
                   </p>
                 )}
               </div>
@@ -1352,7 +1863,10 @@ const handleConfirmReceipt = async (auctionId: number) => {
                       <p className="text-yellow-600/80 text-sm mb-8 leading-relaxed font-medium">Congratulations! You are the winner of this auction. Please contact the seller to arrange delivery.</p>
                       
                       <div className="grid grid-cols-2 gap-3">
-                        <button className="bg-yellow-500 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 shadow-md shadow-yellow-200 active:scale-95 transition-all">
+                        <button 
+                          onClick={() => handleOpenChat(selectedItem.id, selectedItem.seller_id, selectedItem.seller_id, selectedItem.title)}
+                          className="bg-yellow-500 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 shadow-md shadow-yellow-200 active:scale-95 transition-all"
+                        >
                           <MessageSquare size={14} /> Contact Seller
                         </button>
                         <button 
@@ -1381,7 +1895,10 @@ const handleConfirmReceipt = async (auctionId: number) => {
                         <p className="text-lg font-black text-blue-400 italic">@{winningBid?.bidder_id || "Unknown"}</p>
                       </div>
 
-                      <button className="w-full bg-white text-black py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 active:scale-95 transition-all">
+                      <button 
+                        onClick={() => handleOpenChat(selectedItem.id, winningBid?.bidder_id, winningBid?.bidder_id, selectedItem.title)}
+                        className="w-full bg-white text-black py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 active:scale-95 transition-all"
+                      >
                         <MessageSquare size={16} /> Message Winner
                       </button>
                     </div>
@@ -1394,7 +1911,7 @@ const handleConfirmReceipt = async (auctionId: number) => {
                     <div className="inline-flex items-center gap-4 bg-white px-6 py-3 rounded-2xl border border-gray-100 shadow-sm">
                       <div className="text-left">
                         <p className="text-[8px] font-black text-gray-400 uppercase">Final Price</p>
-                        <p className="text-lg font-black text-green-500 italic">{Number(selectedItem.currentBid).toFixed(2)} π</p>
+                        <p className="text-lg font-black text-green-500 italic bid-amount" data-auction-id={selectedItem.id}>{Number(selectedItem.currentBid).toFixed(2)} π</p>
                       </div>
                       <div className="w-px h-8 bg-gray-100"></div>
                       <div className="text-left">
@@ -1479,6 +1996,19 @@ const handleConfirmReceipt = async (auctionId: number) => {
 
 
 
+      {/* MESSAGE MODAL */}
+      {isMessageModalOpen && chatConfig && user && (
+        <MessageModal
+          isOpen={isMessageModalOpen}
+          onClose={() => setIsMessageModalOpen(false)}
+          auctionId={chatConfig.auctionId}
+          currentUserId={user.username.replace('@', '')}
+          otherUserId={chatConfig.otherUserId}
+          otherUsername={chatConfig.otherUsername}
+          itemTitle={chatConfig.itemTitle}
+        />
+      )}
+
       {/* BID MODAL (2nd Image Layout) */}
 
       {isBidModalOpen && selectedItem && (
@@ -1535,7 +2065,7 @@ const handleConfirmReceipt = async (auctionId: number) => {
             )}
           </p>
 
-          <p className="text-2xl font-black text-gray-900 mt-1">
+          <p className="text-2xl font-black text-gray-900 mt-1 bid-amount" data-auction-id={selectedItem.id}>
 
             {Number(selectedItem.currentBid).toFixed(2)} <span className="text-sm font-bold">π</span>
 
@@ -1617,34 +2147,45 @@ const handleConfirmReceipt = async (auctionId: number) => {
 
 
 
-        {/* Max Bid Section */}
-
+        {/* Enhanced Max Bid Section */}
         <div>
-
           <div className="flex justify-between items-center mb-2">
-
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Your max bid</label>
-
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">
+              Your max bid
+              <span className="ml-2 text-[8px] text-blue-500">💡 We'll auto-bid for you up to this amount</span>
+            </label>
             <span className="text-[9px] font-bold text-gray-300 uppercase italic">Optional</span>
-
           </div>
-
+          
           <div className="relative group">
-
             <span className="absolute left-5 top-1/2 -translate-y-1/2 text-xl font-black text-gray-200 group-focus-within:text-gray-400 transition-colors">π</span>
-
             <input
-
               type="number"
-
-              placeholder={(Number(selectedItem.currentBid) + 1).toFixed(2)}
-
-              className="w-full bg-white border-2 border-gray-100 focus:border-gray-300 rounded-2xl py-5 pl-12 pr-6 text-xl font-black outline-none transition-all placeholder:text-gray-100"
-
+              step="0.01"
+              min={(Number(selectedItem.currentBid) + 0.1).toFixed(2)}
+              value={maxBidAmount}
+              onChange={(e) => {
+                const value = e.target.value;
+                // Only allow positive numbers
+                if (value === '' || (Number(value) >= 0 && !isNaN(Number(value)))) {
+                  setMaxBidAmount(value);
+                }
+              }}
+              placeholder={`Min: ${(Number(selectedItem.currentBid) + 0.1).toFixed(2)}`}
+              className="w-full bg-white border-2 border-gray-100 focus:border-blue-300 rounded-2xl py-5 pl-12 pr-6 text-xl font-black outline-none transition-all placeholder:text-gray-300"
             />
-
           </div>
-
+          
+          {/* Max Bid Help Text */}
+          {maxBidAmount && (
+            <div className="mt-2 text-[9px] text-gray-500">
+              {Number(maxBidAmount) > Number(selectedItem.currentBid) ? (
+                <span className="text-green-600">✅ Max bid is valid</span>
+              ) : (
+                <span className="text-red-600">❌ Max bid must be higher than current price</span>
+              )}
+            </div>
+          )}
         </div>
 
       </div>

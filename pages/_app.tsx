@@ -5,10 +5,10 @@ import Script from 'next/script';
 export default function App({ Component, pageProps }: AppProps) {
   return (
     <>
-      {/* Load the Pi SDK globally */}
+      {/* Load the Pi SDK globally as early as possible */}
       <Script 
         src="https://sdk.minepi.com/pi-sdk.js" 
-        strategy="afterInteractive" 
+        strategy="beforeInteractive" 
       />
       <Component {...pageProps} />
     </>

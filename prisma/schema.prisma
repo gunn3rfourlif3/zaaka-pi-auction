@@ -27,6 +27,8 @@ model auctions {
   escrow_ledger escrow_ledger[]
   images        auction_images[]
   bids          bids[]
+  messages      messages[]
+  auto_bids     auto_bids[]
 }
 
 model auction_images {
@@ -61,4 +63,34 @@ model escrow_ledger {
   auctions       auctions @relation(fields: [auction_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "escrow_ledger_ibfk_1")
 
   @@index([auction_id], map: "auction_id")
+}
+
+model messages {
+  id          Int      @id @default(autoincrement())
+  sender_id   String   @db.VarChar(255)
+  receiver_id String   @db.VarChar(255)
+  content     String   @db.Text
+  auction_id  Int
+  created_at  DateTime @default(now())
+  read        Boolean  @default(false)
+
+  auction     auctions @relation(fields: [auction_id], references: [id], onDelete: Cascade)
+
+  @@index([auction_id])
+  @@index([sender_id])
+  @@index([receiver_id])
+}
+
+model auto_bids {
+  id            Int      @id @default(autoincrement())
+  auction_id    Int
+  bidder_id     String   @db.VarChar(255)
+  max_amount    Decimal  @db.Decimal(10, 2)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  
+  // Link to auction
+  auction       auctions @relation(fields: [auction_id], references: [id], onDelete: Cascade)
+
+  @@index([auction_id])
 }

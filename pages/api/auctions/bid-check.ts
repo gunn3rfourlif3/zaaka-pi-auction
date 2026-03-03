@@ -10,7 +10,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { auctionId, bidAmount } = req.body;
+    const { auctionId, bidAmount, maxBid } = req.body;
 
     // 2. Validate input existence
     if (!auctionId || !bidAmount) {
@@ -40,9 +40,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const currentPrice = Number(auction.currentBid);
     const newBid = parseFloat(bidAmount);
 
-    if (newBid <= currentPrice) {
+    // Floating point comparison safety
+    if (newBid <= currentPrice + 0.0001) {
       return res.status(400).json({ 
-        error: `Bid too low. Minimum bid is ${(currentPrice + 0.01).toFixed(2)} π` 
+        error: `Bid too low. Minimum bid is ${(currentPrice + 0.1).toFixed(2)} π` 
+      });
+    }
+
+    if (maxBid && parseFloat(maxBid) <= newBid) {
+      return res.status(400).json({ 
+        error: `Max bid (${parseFloat(maxBid).toFixed(2)}) must be higher than your current bid (${newBid.toFixed(2)}).` 
       });
     }
 
