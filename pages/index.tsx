@@ -344,7 +344,7 @@ const filteredItems = items.filter(item => {
 
   images: ['', '', ''], // Three image slots
 
-  duration: '24', // Default to 24 hours
+  duration: '0.0833', // Default to 5 minutes (5/60 hours)
 
   category: 'Fashion' // Default category
 
@@ -1086,9 +1086,10 @@ const handleConfirmReceipt = async (auctionId: number) => {
     return;
   }
 
-  const durationHours = parseInt(newListing.duration);
+  const durationHours = parseFloat(newListing.duration);
+  const durationMinutes = Math.round(durationHours * 60); // Convert hours to minutes
   const expirationDate = new Date();
-  expirationDate.setHours(expirationDate.getHours() + durationHours);
+  expirationDate.setMinutes(expirationDate.getMinutes() + durationMinutes);
 
   // 2. VALIDATION CHECK
   if (!newListing.title || !newListing.price) {
@@ -1115,7 +1116,7 @@ const handleConfirmReceipt = async (auctionId: number) => {
 
     if (res.ok) {
       alert("Success! Your auction is live.");
-      setNewListing({ title: '', description: '', price: '', duration: '24', images: ['', '', ''] });
+      setNewListing({ title: '', description: '', price: '', duration: '0.0833', images: ['', '', ''] });
       setView('inventory');
       fetchItems();
     }
@@ -1573,17 +1574,17 @@ const handleConfirmReceipt = async (auctionId: number) => {
 
   <div className="flex gap-2">
 
-    {[24, 48, 72, 168].map((hours) => (
+    {[5, 10, 15, 30].map((minutes) => (
 
       <button
 
-        key={hours}
+        key={minutes}
 
-        onClick={() => setNewListing({...newListing, duration: hours.toString()})}
+        onClick={() => setNewListing({...newListing, duration: (minutes/60).toString()})}
 
         className={`flex-1 py-3 rounded-2xl text-[10px] font-black border transition-all ${
 
-          newListing.duration === hours.toString()
+          newListing.duration === (minutes/60).toString()
 
           ? 'bg-[#1A1D21] text-white border-[#1A1D21]'
 
@@ -1593,7 +1594,7 @@ const handleConfirmReceipt = async (auctionId: number) => {
 
       >
 
-        {hours < 168 ? `${hours}H` : '7 DAYS'}
+        {minutes}M
 
       </button>
 
@@ -2006,6 +2007,8 @@ const handleConfirmReceipt = async (auctionId: number) => {
           otherUserId={chatConfig.otherUserId}
           otherUsername={chatConfig.otherUsername}
           itemTitle={chatConfig.itemTitle}
+          auctionSellerId={selectedItem?.seller_id}
+          winningBidderId={selectedItem?.bids?.[0]?.bidder_id}
         />
       )}
 

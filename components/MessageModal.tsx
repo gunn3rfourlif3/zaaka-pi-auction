@@ -17,6 +17,8 @@ interface MessageModalProps {
   otherUserId: string;   // The person they are chatting with (seller or winner)
   otherUsername: string; // Display name for the header
   itemTitle: string;
+  auctionSellerId?: string; // Optional: seller ID to determine roles
+  winningBidderId?: string; // Optional: winner ID to determine roles
 }
 
 export const MessageModal: React.FC<MessageModalProps> = ({
@@ -26,7 +28,9 @@ export const MessageModal: React.FC<MessageModalProps> = ({
   currentUserId,
   otherUserId,
   otherUsername,
-  itemTitle
+  itemTitle,
+  auctionSellerId,
+  winningBidderId
 }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -123,17 +127,54 @@ export const MessageModal: React.FC<MessageModalProps> = ({
           ) : (
             messages.map((msg) => {
               const isMe = msg.sender_id === currentUserId;
+              
+              // Determine if sender is seller or winner based on auction context
+              const isSenderSeller = auctionSellerId && msg.sender_id === auctionSellerId;
+              const isSenderWinner = winningBidderId && msg.sender_id === winningBidderId;
+              
+              // Determine colors based on sender role
+              let bubbleClasses = '';
+              let timestampClasses = '';
+              
+              if (isMe) {
+                // Current user's messages
+                if (currentUserId === auctionSellerId) {
+                  // Seller messages (green)
+                  bubbleClasses = 'bg-green-600 text-white rounded-br-none';
+                  timestampClasses = 'text-green-100';
+                } else if (currentUserId === winningBidderId) {
+                  // Winner messages (gold)
+                  bubbleClasses = 'bg-yellow-500 text-white rounded-br-none';
+                  timestampClasses = 'text-yellow-100';
+                } else {
+                  // Default fallback
+                  bubbleClasses = 'bg-blue-600 text-white rounded-br-none';
+                  timestampClasses = 'text-blue-100';
+                }
+              } else {
+                // Other person's messages
+                if (isSenderSeller) {
+                  // Seller messages (green)
+                  bubbleClasses = 'bg-green-600 text-white rounded-bl-none';
+                  timestampClasses = 'text-green-100';
+                } else if (isSenderWinner) {
+                  // Winner messages (gold)
+                  bubbleClasses = 'bg-yellow-500 text-white rounded-bl-none';
+                  timestampClasses = 'text-yellow-100';
+                } else {
+                  // Default fallback
+                  bubbleClasses = 'bg-gray-100 text-gray-800 rounded-bl-none';
+                  timestampClasses = 'text-gray-400';
+                }
+              }
+              
               return (
                 <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                   <div 
-                    className={`max-w-[80%] p-4 rounded-2xl text-sm font-medium leading-relaxed ${
-                      isMe 
-                        ? 'bg-blue-600 text-white rounded-br-none' 
-                        : 'bg-gray-100 text-gray-800 rounded-bl-none'
-                    }`}
+                    className={`max-w-[80%] p-4 rounded-2xl text-sm font-medium leading-relaxed ${bubbleClasses}`}
                   >
                     {msg.content}
-                    <div className={`text-[9px] mt-1 font-bold uppercase tracking-wider opacity-60 ${isMe ? 'text-blue-100' : 'text-gray-400'}`}>
+                    <div className={`text-[9px] mt-1 font-bold uppercase tracking-wider opacity-60 ${timestampClasses}`}>
                       {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </div>
                   </div>
