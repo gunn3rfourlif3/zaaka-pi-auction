@@ -5,12 +5,12 @@ console.log("Complete verification of real-time bid functionality through ngrok"
 console.log("=".repeat(70));
 
 // Test configuration
-const NGROK_URL = "https://nondefinitely-fibrinogenic-talitha.ngrok-free.dev";
-const TEST_AUCTION_ID = 2931;
-const TEST_BIDDER = "final_verification_user";
+const FINAL_NGROK_URL = "https://nondefinitely-fibrinogenic-talitha.ngrok-free.dev";
+const FINAL_TEST_AUCTION_ID = 2931;
+const FINAL_TEST_BIDDER = "final_verification_user";
 
 // Performance tracking
-let startTime = Date.now();
+let finalStartTime = Date.now();
 let totalUpdates = 0;
 let successfulUpdates = 0;
 let failedUpdates = 0;
@@ -22,8 +22,8 @@ async function simulateCompleteUserJourney() {
     
     // Step 1: User opens auction page through ngrok
     console.log("1️⃣ User opens auction page through ngrok tunnel...");
-    console.log(`   📡 URL: ${NGROK_URL}`);
-    console.log(`   🎯 Auction ID: ${TEST_AUCTION_ID}`);
+    console.log(`   📡 URL: ${FINAL_NGROK_URL}`);
+    console.log(`   🎯 Auction ID: ${FINAL_TEST_AUCTION_ID}`);
     
     // Step 2: System automatically detects ngrok and uses HTTP polling
     console.log("\n2️⃣ System detects ngrok environment...");
@@ -51,7 +51,7 @@ async function simulateCompleteUserJourney() {
 // Test HTTP polling connection
 async function testHttpPollingConnection() {
     try {
-        const response = await fetch(`${NGROK_URL}/api/http-poll?action=subscribe&auctionId=${TEST_AUCTION_ID}&clientId=final_user_${Date.now()}`, {
+        const response = await fetch(`${FINAL_NGROK_URL}/api/http-poll?action=subscribe&auctionId=${FINAL_TEST_AUCTION_ID}&clientId=final_user_${Date.now()}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -91,7 +91,7 @@ async function simulateBiddingWar() {
             totalUpdates++;
             
             try {
-                const response = await fetch(`${NGROK_URL}/api/http-poll?action=update`, {
+                const response = await fetch(`${FINAL_NGROK_URL}/api/http-poll?action=update`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -99,7 +99,7 @@ async function simulateBiddingWar() {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                     },
                     body: JSON.stringify({
-                        auctionId: TEST_AUCTION_ID,
+                        auctionId: FINAL_TEST_AUCTION_ID,
                         newBid: bidAmount,
                         bidder: bidder.name,
                         type: 'bid_update'
@@ -112,7 +112,7 @@ async function simulateBiddingWar() {
                     successfulUpdates++;
                     
                     // Simulate UI update
-                    console.log(`   🎯 UI Update: Auction ${TEST_AUCTION_ID} - New bid: ${bidAmount}π by ${bidder.name}`);
+                    console.log(`   🎯 UI Update: Auction ${FINAL_TEST_AUCTION_ID} - New bid: ${bidAmount}π by ${bidder.name}`);
                 } else {
                     console.log(`   ❌ ${bidder.name} bid ${bidAmount}π - FAILED (${response.status})`);
                     failedUpdates++;
@@ -140,7 +140,7 @@ async function simulateAuctionFinalization() {
     console.log("   🏁 Finalizing auction...");
     
     try {
-        const response = await fetch(`${NGROK_URL}/api/http-poll?action=update`, {
+        const response = await fetch(`${FINAL_NGROK_URL}/api/http-poll?action=update`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -148,7 +148,7 @@ async function simulateAuctionFinalization() {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             },
             body: JSON.stringify({
-                auctionId: TEST_AUCTION_ID,
+                auctionId: FINAL_TEST_AUCTION_ID,
                 newBid: finalPrice,
                 bidder: winner,
                 type: 'auction_finalized'
@@ -175,7 +175,7 @@ async function simulateAuctionFinalization() {
 // Performance analysis
 function analyzePerformance() {
     const endTime = Date.now();
-    const totalTime = endTime - startTime;
+    const totalTime = endTime - finalStartTime;
     const averageTimePerUpdate = totalTime / totalUpdates;
     const successRate = (successfulUpdates / totalUpdates) * 100;
     

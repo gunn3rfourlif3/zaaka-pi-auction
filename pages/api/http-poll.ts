@@ -8,7 +8,8 @@ const bidUpdateQueue = new Map<number, any[]>(); // auctionId -> updates array
 // Clean up old clients every 5 minutes
 setInterval(() => {
     const now = Date.now();
-    for (const [clientId, client] of pollingClients.entries()) {
+    const entries = Array.from(pollingClients.entries());
+    for (const [clientId, client] of entries) {
         if (now - client.lastUpdate > 300000) { // 5 minutes
             pollingClients.delete(clientId);
             console.log(`🧹 Cleaned up inactive polling client: ${clientId}`);

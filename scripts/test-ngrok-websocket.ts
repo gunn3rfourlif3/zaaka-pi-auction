@@ -37,7 +37,7 @@ socket.on("connect", () => {
     console.log("✅ WebSocket Connection: SUCCESS");
     console.log("   Socket ID:", socket.id);
     console.log("   Transport:", socket.io.engine.transport.name);
-    console.log("   Connected to:", socket.io.uri || window.location.origin);
+    console.log("   Connected to:", "WebSocket server");
     
     testResults.connection = true;
     testResults.socketId = socket.id;
@@ -53,12 +53,12 @@ socket.on("connect", () => {
 
 socket.on("connect_error", (err) => {
     console.error("❌ Connection Error:", err.message);
-    console.error("   Type:", err.type);
-    console.error("   Context:", err.context);
+    console.error("   Type:", (err as any).type || 'unknown');
+    console.error("   Context:", (err as any).context);
     testResults.errors.push({
         type: 'connection',
         message: err.message,
-        context: err.context,
+        context: (err as any).context,
         timestamp: new Date().toISOString()
     });
     testResults.connectionAttempts++;

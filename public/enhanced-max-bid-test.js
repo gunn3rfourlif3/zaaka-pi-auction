@@ -68,7 +68,13 @@ function testMaxBidUI() {
     };
     
     // Check for help text
-    const helpText = document.querySelector('.text-\[8px\].text-blue-500') || document.querySelector('[class*="text-blue-500"]');
+    let helpText = null;
+    try {
+        helpText = document.querySelector('.text-\[8px\].text-blue-500');
+    } catch (e) {
+        // Fallback selectors if the first one fails
+        helpText = document.querySelector('[class*="text-blue-500"]') || document.querySelector('.text-blue-500');
+    }
     if (helpText && helpText.textContent?.includes("We'll auto-bid for you")) {
         console.log("✅ Help text found: " + helpText.textContent);
         results.helpText = true;
@@ -77,7 +83,12 @@ function testMaxBidUI() {
     }
     
     // Check for validation feedback
-    const validationText = document.querySelector('.mt-2.text-\[9px\]') || document.querySelector('.mt-2');
+    let validationText = null;
+    try {
+        validationText = document.querySelector('.mt-2.text-\[9px\]');
+    } catch (e) {
+        validationText = document.querySelector('.mt-2') || document.querySelector('[class*="mt-2"]');
+    }
     if (validationText) {
         console.log("✅ Validation feedback container found");
         results.validationFeedback = true;

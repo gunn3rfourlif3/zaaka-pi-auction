@@ -2,10 +2,7 @@
   "/_app": "pages/_app.js",
   "/_error": "pages/_error.js",
   "/_document": "pages/_document.js",
-  "/": "pages/index.js",
-  "/api/http-poll": "pages/api/http-poll.js",
-  "/api/seller/items": "pages/api/seller/items.js",
   "/api/auctions/live": "pages/api/auctions/live.js",
-  "/api/messages/list": "pages/api/messages/list.js",
-  "/api/auctions/receipt": "pages/api/auctions/receipt.js"
+  "/": "pages/index.js",
+  "/api/http-poll": "pages/api/http-poll.js"
 }

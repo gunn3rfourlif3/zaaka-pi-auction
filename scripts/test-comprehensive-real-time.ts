@@ -3,9 +3,9 @@ console.log("🧪 COMPREHENSIVE REAL-TIME FUNCTIONALITY TEST");
 console.log("=".repeat(60));
 
 // Test configuration
-const testAuctionId = 2931; // Use the auction ID from the logs
-const testBidder = "test_user";
-let bidCounter = 1;
+const comprehensiveTestAuctionId = 2931; // Use the auction ID from the logs
+const comprehensiveTestBidder = "test_user";
+let comprehensiveBidCounter = 1;
 
 // Track received updates
 const receivedUpdates = [];
@@ -13,7 +13,7 @@ const receivedUpdates = [];
 // Test bid update simulation
 async function simulateBidUpdate(amount) {
     try {
-        console.log(`📡 Sending bid update: ${amount}π by ${testBidder}`);
+        console.log(`📡 Sending bid update: ${amount}π by ${comprehensiveTestBidder}`);
         
         const response = await fetch('http://localhost:5500/api/http-poll?action=update', {
             method: 'POST',
@@ -23,9 +23,9 @@ async function simulateBidUpdate(amount) {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             },
             body: JSON.stringify({
-                auctionId: testAuctionId,
+                auctionId: comprehensiveTestAuctionId,
                 newBid: amount,
-                bidder: testBidder,
+                bidder: comprehensiveTestBidder,
                 type: 'bid_update'
             })
         });
@@ -46,7 +46,7 @@ async function simulateBidUpdate(amount) {
 }
 
 // Test HTTP polling client
-async function testHttpPollingClient() {
+async function testComprehensiveHttpPollingClient() {
     console.log("\n" + "=".repeat(60));
     console.log("🔄 TESTING HTTP POLLING CLIENT");
     console.log("=".repeat(60));
@@ -56,7 +56,7 @@ async function testHttpPollingClient() {
         const { HttpPollingClient } = require('../services/http-polling-client');
         
         const clientId = `test_client_${Date.now()}`;
-        const httpClient = new HttpPollingClient('http://localhost:5500', testAuctionId, clientId, 1000); // 1 second polling
+        const httpClient = new HttpPollingClient('http://localhost:5500', comprehensiveTestAuctionId, clientId, 1000); // 1 second polling
         
         // Set up event listeners
         httpClient.on('bid_update', (data) => {
@@ -115,7 +115,7 @@ async function testMultipleClients() {
         // Create 3 clients
         for (let i = 0; i < 3; i++) {
             const clientId = `multi_client_${i}_${Date.now()}`;
-            const client = new HttpPollingClient('http://localhost:5500', testAuctionId, clientId, 2000);
+            const client = new HttpPollingClient('http://localhost:5500', comprehensiveTestAuctionId, clientId, 2000);
             
             client.on('bid_update', (data) => {
                 console.log(`🎯 Client ${i} received bid update: ${data.newBid}π by ${data.bidder}`);
@@ -157,7 +157,7 @@ async function runComprehensiveTest() {
     const basicTest = await simulateBidUpdate(25.5);
     
     // Test 2: HTTP polling client
-    const pollingTest = await testHttpPollingClient();
+    const pollingTest = await testComprehensiveHttpPollingClient();
     
     // Test 3: Multiple concurrent clients
     const multiClientTest = await testMultipleClients();

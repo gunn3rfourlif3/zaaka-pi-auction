@@ -1,12 +1,8 @@
 import 'dotenv/config';
-import pg from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './src/generated/client/client';
+import { PrismaClient } from '@prisma/client';
 
 async function settleExpiredAuctions() {
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-  const adapter = new PrismaPg(pool);
-  const prisma = new PrismaClient({ adapter });
+  const prisma = new PrismaClient();
 
   try {
     console.log("🔍 Checking for expired auctions...");
@@ -15,7 +11,7 @@ async function settleExpiredAuctions() {
     const expired = await prisma.auctions.findMany({
       where: {
         status: 'ACTIVE',
-        end_time: { lt: new Date() } // "Less Than" now
+        expires_at: { lt: new Date() } // "Less Than" now
       },
       include: {
         bids: {
@@ -52,7 +48,7 @@ async function settleExpiredAuctions() {
   } catch (error) {
     console.error("❌ Settlement Error:", error);
   } finally {
-    await pool.end();
+    await prisma.$disconnect();
   }
 }
 

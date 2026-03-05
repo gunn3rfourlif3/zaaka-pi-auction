@@ -1,15 +1,11 @@
 import 'dotenv/config';
-import pg from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './src/generated/client/client';
+import { PrismaClient } from '@prisma/client';
 
 /**
  * Places a bid on an auction with full validation and security checks.
  */
 async function placeBid(auctionId: number, bidderId: string, bidAmount: number) {
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-  const adapter = new PrismaPg(pool);
-  const prisma = new PrismaClient({ adapter });
+  const prisma = new PrismaClient();
 
   try {
     console.log(`\n⏳ Attempting to place bid of ${bidAmount} Pi for User: ${bidderId}...`);
@@ -38,7 +34,7 @@ async function placeBid(auctionId: number, bidderId: string, bidAmount: number) 
 
       // 4. CHECK: Is the bid higher than the current price?
       // Note: We convert Decimal to Number for the comparison
-      const currentPrice = Number(auction.current_bid);
+      const currentPrice = Number(auction.currentBid);
       if (bidAmount <= currentPrice) {
         throw new Error(`Bid too low. The current high bid is ${currentPrice} Pi.`);
       }
@@ -46,17 +42,16 @@ async function placeBid(auctionId: number, bidderId: string, bidAmount: number) 
       // 5. SUCCESS: Create the bid record
       const newBid = await tx.bids.create({
         data: {
-          auction_id: auctionId,
+          auctionId: auctionId,
           bidder_id: bidderId,
-          amount: bidAmount,
-          status: "APPROVED"
+          amount: bidAmount
         }
       });
 
       // 6. SUCCESS: Update the auction's current price
       await tx.auctions.update({
         where: { id: auctionId },
-        data: { current_bid: bidAmount }
+        data: { currentBid: bidAmount }
       });
 
       return newBid;
@@ -67,8 +62,8 @@ async function placeBid(auctionId: number, bidderId: string, bidAmount: number) 
   } catch (error: any) {
     console.error(`❌ BID REJECTED: ${error.message}`);
   } finally {
-    // Always close the pool to prevent hanging connections
-    await pool.end();
+    // Always disconnect to prevent hanging connections
+    await prisma.$disconnect();
   }
 }
 

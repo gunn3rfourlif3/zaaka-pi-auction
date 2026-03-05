@@ -1,16 +1,12 @@
 import 'dotenv/config';
-import pg from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './src/generated/client/client';
+import { PrismaClient } from '@prisma/client';
 
 /**
  * Admin function to refund a buyer.
  * This should only be accessible by marketplace moderators.
  */
 async function adminRefund(escrowId: number, adminReason: string) {
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-  const adapter = new PrismaPg(pool);
-  const prisma = new PrismaClient({ adapter });
+  const prisma = new PrismaClient();
 
   try {
     console.log(`⚖️  ADMIN ACTION: Initiating refund for Escrow ID: ${escrowId}...`);
@@ -56,7 +52,7 @@ async function adminRefund(escrowId: number, adminReason: string) {
   } catch (error: any) {
     console.error(`❌ REFUND FAILED: ${error.message}`);
   } finally {
-    await pool.end();
+    await prisma.$disconnect();
   }
 }
 

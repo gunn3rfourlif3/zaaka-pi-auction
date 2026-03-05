@@ -829,7 +829,6 @@ window.testSellerWinnerChat();
 // Test specific auctions
 window.testArsenalAuction();
 window.testFashionChatAuction();
-```
 \`\`\`
 
 ## 📈 Expected Results

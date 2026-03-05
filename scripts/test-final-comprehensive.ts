@@ -5,9 +5,9 @@ console.log("Testing the complete ngrok-compatible real-time system");
 console.log("=".repeat(70));
 
 // Test configuration
-const testAuctionId = 2931;
-const testBidder = "ngrok_test_user";
-let bidCounter = 1;
+const FINAL_COMPREHENSIVE_TEST_AUCTION_ID = 2931;
+const FINAL_COMPREHENSIVE_TEST_BIDDER = "ngrok_test_user";
+let finalComprehensiveBidCounter = 1;
 
 // Simulate different environments
 const environments = [
@@ -29,7 +29,7 @@ async function testEnvironment(environment) {
     try {
         // Test 1: Connection
         console.log("1️⃣ Testing connection...");
-        const connectResponse = await fetch(`${environment.url}/api/http-poll?action=subscribe&auctionId=${testAuctionId}&clientId=test_client_${environment.name.toLowerCase()}`, {
+        const connectResponse = await fetch(`${environment.url}/api/http-poll?action=subscribe&auctionId=${FINAL_COMPREHENSIVE_TEST_AUCTION_ID}&clientId=test_client_${environment.name.toLowerCase()}`, {
             method: 'POST',
             headers: environment.isNgrok ? {
                 'Content-Type': 'application/json',
@@ -48,7 +48,7 @@ async function testEnvironment(environment) {
         
         // Test 2: Bid Update
         console.log("2️⃣ Testing bid update...");
-        const bidAmount = 75.25 + (bidCounter++ * 5);
+        const bidAmount = 75.25 + (finalComprehensiveBidCounter++ * 5);
         const bidResponse = await fetch(`${environment.url}/api/http-poll?action=update`, {
             method: 'POST',
             headers: environment.isNgrok ? {
@@ -57,9 +57,9 @@ async function testEnvironment(environment) {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             } : { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                auctionId: testAuctionId,
+                auctionId: FINAL_COMPREHENSIVE_TEST_AUCTION_ID,
                 newBid: bidAmount,
-                bidder: `${testBidder}_${environment.name.toLowerCase()}`,
+                bidder: `${FINAL_COMPREHENSIVE_TEST_BIDDER}_${environment.name.toLowerCase()}`,
                 type: 'bid_update'
             })
         });
@@ -86,7 +86,7 @@ async function testEnvironment(environment) {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             } : { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                auctionId: testAuctionId,
+                auctionId: FINAL_COMPREHENSIVE_TEST_AUCTION_ID,
                 newBid: 100.00,
                 bidder: `winner_${environment.name.toLowerCase()}`,
                 type: 'auction_finalized'
@@ -121,7 +121,7 @@ async function testHttpPollingClient() {
     try {
         const { HttpPollingClient } = require('../services/http-polling-client');
         
-        const client = new HttpPollingClient('http://localhost:5500', testAuctionId, 'test_polling_client', 1000);
+        const client = new HttpPollingClient('http://localhost:5500', FINAL_COMPREHENSIVE_TEST_AUCTION_ID, 'test_polling_client', 1000);
         const receivedUpdates = [];
         
         // Set up event listeners
@@ -147,7 +147,7 @@ async function testHttpPollingClient() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                auctionId: testAuctionId,
+                auctionId: FINAL_COMPREHENSIVE_TEST_AUCTION_ID,
                 newBid: 85.50,
                 bidder: 'polling_test_user',
                 type: 'bid_update'
@@ -162,7 +162,7 @@ async function testHttpPollingClient() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                auctionId: testAuctionId,
+                auctionId: FINAL_COMPREHENSIVE_TEST_AUCTION_ID,
                 newBid: 150.00,
                 bidder: 'polling_winner',
                 type: 'auction_finalized'
@@ -199,7 +199,7 @@ async function testMultiClientScenario() {
         
         // Create 3 clients
         for (let i = 0; i < 3; i++) {
-            const client = new HttpPollingClient('http://localhost:5500', testAuctionId, `multi_client_${i}`, 1000);
+            const client = new HttpPollingClient('http://localhost:5500', FINAL_COMPREHENSIVE_TEST_AUCTION_ID, `multi_client_${i}`, 1000);
             
             client.on('bid_update', (data) => {
                 console.log(`   🎯 Client ${i} received: ${data.newBid}π by ${data.bidder}`);
@@ -219,7 +219,7 @@ async function testMultiClientScenario() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                auctionId: testAuctionId,
+                auctionId: FINAL_COMPREHENSIVE_TEST_AUCTION_ID,
                 newBid: 95.75,
                 bidder: 'multi_client_test',
                 type: 'bid_update'

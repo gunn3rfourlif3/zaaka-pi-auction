@@ -1,12 +1,8 @@
 import 'dotenv/config';
-import pg from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './src/generated/client/client';
+import { PrismaClient } from '@prisma/client';
 
 async function confirmDelivery(escrowId: number) {
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-  const adapter = new PrismaPg(pool);
-  const prisma = new PrismaClient({ adapter });
+  const prisma = new PrismaClient();
 
   try {
     console.log(`📦 Confirming delivery for Escrow ID: ${escrowId}...`);
@@ -36,15 +32,16 @@ async function confirmDelivery(escrowId: number) {
 
       // 4. Update Trust Scores (+2 for successful trade)
       // Both the buyer (winner_id) and seller (seller_id) benefit
-      await tx.users.update({
-        where: { uid: escrow.seller_id },
-        data: { zaaka_trust_score: { increment: 2 } }
-      });
+      // Note: users model not available in current schema
+      // await tx.users.update({
+      //   where: { uid: escrow.seller_id },
+      //   data: { zaaka_trust_score: { increment: 2 } }
+      // });
 
-      await tx.users.update({
-        where: { uid: escrow.winner_id },
-        data: { zaaka_trust_score: { increment: 2 } }
-      });
+      // await tx.users.update({
+      //   where: { uid: escrow.winner_id },
+      //   data: { zaaka_trust_score: { increment: 2 } }
+      // });
 
       return updatedEscrow;
     });
@@ -55,7 +52,7 @@ async function confirmDelivery(escrowId: number) {
   } catch (error: any) {
     console.error(`❌ CONFIRMATION FAILED: ${error.message}`);
   } finally {
-    await pool.end();
+    await prisma.$disconnect();
   }
 }
 

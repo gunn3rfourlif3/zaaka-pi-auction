@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './src/generated/client/client';
+import { PrismaClient } from '@prisma/client';
 import { handleOutbidNotification } from './services/notification_service';
 import { connectRedis } from './lib/redis';
 
@@ -34,7 +34,7 @@ async function handleClockExtension(tx: any, auctionId: number) {
 async function placeBid(auctionId: number, bidderId: string, bidAmount: number, io?: any) {
     const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
     const adapter = new PrismaPg(pool);
-    const prisma = new PrismaClient({ adapter });
+    const prisma = new PrismaClient();
 
     try {
         await connectRedis(); 
@@ -48,7 +48,7 @@ async function placeBid(auctionId: number, bidderId: string, bidAmount: number, 
             if (auction.status !== 'ACTIVE') throw new Error("Auction is closed.");
             if (auction.seller_id === bidderId) throw new Error("Self-bidding forbidden.");
 
-            const currentPrice = Number(auction.current_bid);
+            const currentPrice = Number(auction.currentBid);
             if (bidAmount <= currentPrice) throw new Error(`Current bid is ${currentPrice} Pi.`);
 
             // 2. Execute Clock Extension (Anti-Sniping)
@@ -57,17 +57,16 @@ async function placeBid(auctionId: number, bidderId: string, bidAmount: number, 
             // 3. Record the bid
             const newBid = await tx.bids.create({
                 data: {
-                    auction_id: auctionId,
+                    auctionId: auctionId,
                     bidder_id: bidderId,
-                    amount: bidAmount,
-                    status: "APPROVED" // Assuming Pi Server-Side Approval passed
+                    amount: bidAmount
                 }
             });
 
             // 4. Update current price
             await tx.auctions.update({
                 where: { id: auctionId },
-                data: { current_bid: bidAmount }
+                data: { currentBid: bidAmount }
             });
 
             return { newBid, itemName: auction.title, extendedTime };
@@ -92,6 +91,6 @@ async function placeBid(auctionId: number, bidderId: string, bidAmount: number, 
     } catch (error: any) {
         console.error(`❌ BID REJECTED: ${error.message}`);
     } finally {
-        await pool.end();
+        await prisma.$disconnect();
     }
 }

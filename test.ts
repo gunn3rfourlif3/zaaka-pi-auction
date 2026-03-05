@@ -2,12 +2,12 @@ import 'dotenv/config';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 // 👈 Point this to the index file in your new generated folder
-import { PrismaClient } from './src/generated/client/client'; 
+import { PrismaClient } from '@prisma/client'; 
 
 async function main() {
   const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   const adapter = new PrismaPg(pool);
-  const prisma = new PrismaClient({ adapter });
+  const prisma = new PrismaClient();
 
   try {
     console.log("⏳ Connecting to Zaaka PostgreSQL...");
@@ -21,7 +21,7 @@ async function main() {
     console.error("❌ CONNECTION FAILED:", error.message);
   } finally {
     await prisma.$disconnect();
-    await pool.end();
+    await prisma.$disconnect();
   }
 }
 

@@ -5,11 +5,11 @@ console.log("Testing HTTP polling without Socket.IO interference");
 console.log("=".repeat(70));
 
 // Test configuration
-const TEST_AUCTION_ID = 2931;
-const TEST_BIDDER = "ngrok_clean_user";
+const CLEAN_TEST_AUCTION_ID = 2931;
+const CLEAN_TEST_BIDDER = "ngrok_clean_user";
 
 // Test results
-const testResults = {
+const cleanTestResults = {
     socketIOAttempts: 0,
     httpPollingSuccess: false,
     bidUpdatesReceived: 0,
@@ -21,7 +21,7 @@ const originalFetch = global.fetch;
 global.fetch = async (url, options) => {
     const urlStr = url.toString();
     if (urlStr.includes('socket.io')) {
-        testResults.socketIOAttempts++;
+        cleanTestResults.socketIOAttempts++;
         console.log("❌ UNEXPECTED: Socket.IO connection attempt detected!");
         throw new Error('Socket.IO should not be used for ngrok');
     }
@@ -38,7 +38,7 @@ async function testCleanHttpPolling() {
         
         const client = new HttpPollingClient(
             'https://nondefinitely-fibrinogenic-talitha.ngrok-free.dev',
-            TEST_AUCTION_ID,
+            CLEAN_TEST_AUCTION_ID,
             'clean_test_client',
             1000
         );
@@ -48,17 +48,17 @@ async function testCleanHttpPolling() {
         client.on('bid_update', (data) => {
             console.log(`🎯 Received bid update: ${data.newBid}π by ${data.bidder}`);
             updatesReceived.push(data);
-            testResults.bidUpdatesReceived++;
+            cleanTestResults.bidUpdatesReceived++;
         });
         
         client.on('error', (err) => {
             console.error("❌ HTTP polling error:", err);
-            testResults.errors.push(err.message);
+            cleanTestResults.errors.push(err.message);
         });
         
         console.log("📡 Starting clean HTTP polling...");
         await client.start();
-        testResults.httpPollingSuccess = true;
+        cleanTestResults.httpPollingSuccess = true;
         console.log("✅ HTTP polling started successfully");
         
         // Send test bid updates
@@ -79,7 +79,7 @@ async function testCleanHttpPolling() {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 },
                 body: JSON.stringify({
-                    auctionId: TEST_AUCTION_ID,
+                    auctionId: CLEAN_TEST_AUCTION_ID,
                     newBid: bid.amount,
                     bidder: bid.bidder,
                     type: 'bid_update'
@@ -122,12 +122,12 @@ function testNoSocketIOInterference() {
     console.log("\n🚫 TEST 2: No Socket.IO Interference");
     console.log("-".repeat(50));
     
-    if (testResults.socketIOAttempts === 0) {
+    if (cleanTestResults.socketIOAttempts === 0) {
         console.log("✅ SUCCESS: No Socket.IO connection attempts detected");
         console.log("✅ HTTP polling is working independently");
         return true;
     } else {
-        console.log(`❌ FAILURE: ${testResults.socketIOAttempts} Socket.IO attempts detected`);
+        console.log(`❌ FAILURE: ${cleanTestResults.socketIOAttempts} Socket.IO attempts detected`);
         return false;
     }
 }
@@ -165,7 +165,7 @@ function testUIUpdateSimulation() {
     
     // Test with sample data
     const sampleUpdate = {
-        auctionId: TEST_AUCTION_ID,
+        auctionId: CLEAN_TEST_AUCTION_ID,
         newBid: 250.00,
         bidder: 'ui_test_user'
     };
@@ -181,15 +181,15 @@ function testPerformanceMetrics() {
     console.log("-".repeat(50));
     
     console.log(`📊 Test Results Summary:`);
-    console.log(`   Socket.IO Attempts: ${testResults.socketIOAttempts}`);
-    console.log(`   HTTP Polling Success: ${testResults.httpPollingSuccess}`);
-    console.log(`   Bid Updates Received: ${testResults.bidUpdatesReceived}`);
-    console.log(`   Errors: ${testResults.errors.length}`);
+    console.log(`   Socket.IO Attempts: ${cleanTestResults.socketIOAttempts}`);
+    console.log(`   HTTP Polling Success: ${cleanTestResults.httpPollingSuccess}`);
+    console.log(`   Bid Updates Received: ${cleanTestResults.bidUpdatesReceived}`);
+    console.log(`   Errors: ${cleanTestResults.errors.length}`);
     
-    const success = testResults.socketIOAttempts === 0 && 
-                   testResults.httpPollingSuccess && 
-                   testResults.bidUpdatesReceived > 0 && 
-                   testResults.errors.length === 0;
+    const success = cleanTestResults.socketIOAttempts === 0 && 
+                   cleanTestResults.httpPollingSuccess && 
+                   cleanTestResults.bidUpdatesReceived > 0 && 
+                   cleanTestResults.errors.length === 0;
     
     if (success) {
         console.log("✅ All performance metrics passed");

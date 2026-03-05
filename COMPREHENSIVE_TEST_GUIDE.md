@@ -17,6 +17,7 @@
 - **Competitive Scenarios**: 15 auctions with rapid bidding
 - **Edge Cases**: 5 auctions with special conditions
 - **Special Arsenal Auction**: 1 premium auction (3Pi start, 3min duration)
+- **Fashion Chat Auction**: 1 auction for chat testing (2.5Pi start, 5min duration)
 
 ## 👥 Test Users
 
@@ -71,6 +72,15 @@
 - **Features**: Competitive bidding, max bids, sniping simulation
 - **Test**: Real-time bidding, auto-bid conflicts, winner determination
 
+### 7. Fashion Chat Auction
+- **Item**: Designer Handbag - Chat Test
+- **Seller**: user@arsenal
+- **Starting Price**: 2.5π
+- **Duration**: 5 minutes
+- **Category**: Fashion
+- **Features**: Perfect for testing seller-winner chat functionality
+- **Test**: Chat messaging, bid notifications, winner communication
+
 ## 🚀 Browser Console Testing
 
 ### Test Winner Badge
@@ -93,6 +103,13 @@ window.testMaxBidValidation();
 
 // Test UI enhancements
 window.testMaxBidUI();
+
+// Test chat functionality
+window.testSellerWinnerChat();
+
+// Test specific auctions
+window.testArsenalAuction();
+window.testFashionChatAuction();
 ```
 
 ## 📈 Expected Results

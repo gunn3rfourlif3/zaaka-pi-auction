@@ -57,7 +57,7 @@ socket.on("connect", () => {
     console.log("✅ WebSocket Connection: SUCCESS");
     console.log("   Socket ID:", socket.id);
     console.log("   Transport:", socket.io.engine.transport.name);
-    console.log("   Connected to:", socket.io.uri || window.location.origin);
+    console.log("   Connected to:", "WebSocket server");
     console.log("   Environment:", isNgrok ? "Ngrok (HTTP Polling)" : "Localhost/WebSocket");
     
     testResults.connection = true;
@@ -75,14 +75,14 @@ socket.on("connect", () => {
 
 socket.on("connect_error", (err) => {
     console.error("❌ Connection Error:", err.message);
-    console.error("   Type:", err.type);
+    console.error("   Type:", (err as any).type || 'unknown');
     console.error("   Transport:", socket.io.engine.transport.name);
-    console.error("   Context:", err.context || 'No additional context');
+    console.error("   Context:", (err as any).context || 'No additional context');
     
     testResults.errors.push({
         type: 'connection',
         message: err.message,
-        context: err.context,
+        context: (err as any).context,
         transport: socket.io.engine.transport.name,
         timestamp: new Date().toISOString()
     });

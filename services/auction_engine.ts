@@ -1,11 +1,11 @@
-import { db } from '../lib/db';
-import { io } from '../index'; // Your Socket.io server
+import { prisma } from '../lib/prisma';
+// Note: io instance should be passed as parameter or imported from socket.io-client
 
 export async function handleBidClockExtension(auctionId: number) {
     const SNIPE_WINDOW_MS = 60 * 1000; // 60 seconds
     const EXTENSION_TIME_MS = 5 * 60 * 1000; // 5 minute extension
 
-    const auction = await db.auctions.findUnique({ where: { id: auctionId } });
+    const auction = await prisma.auctions.findUnique({ where: { id: auctionId } });
     if (!auction || auction.status !== 'ACTIVE') return;
 
     const now = new Date();
@@ -16,15 +16,15 @@ export async function handleBidClockExtension(auctionId: number) {
     if (timeRemaining > 0 && timeRemaining < SNIPE_WINDOW_MS) {
         const newExpiryTime = new Date(expiryTime.getTime() + EXTENSION_TIME_MS);
         
-        await db.auctions.update({
+        await prisma.auctions.update({
             where: { id: auctionId },
             data: { expires_at: newExpiryTime }
         });
 
         // Notify all pioneers in the room of the new time
-        io.to(`auction_${auctionId}`).emit('clock_extended', {
-            new_end_time: newExpiryTime.toISOString(),
-            message: "🔥 Anti-Sniping: 5 minutes added!"
-        });
+        // io.to(`auction_${auctionId}`).emit('clock_extended', {
+        //     new_end_time: newExpiryTime.toISOString(),
+        //     message: "🔥 Anti-Sniping: 5 minutes added!"
+        // });
     }
 }

@@ -4,8 +4,8 @@ console.log("=".repeat(70));
 console.log("This simulates real browser users bidding through ngrok");
 console.log("=".repeat(70));
 
-const NGROK_URL = "https://nondefinitely-fibrinogenic-talitha.ngrok-free.dev";
-const AUCTION_ID = 3330; // Using the auction ID from the logs
+const BROWSER_TEST_NGROK_URL = "https://nondefinitely-fibrinogenic-talitha.ngrok-free.dev";
+const BROWSER_TEST_AUCTION_ID = 3330; // Using the auction ID from the logs
 
 // Simulate a real browser user
 async function simulateBrowserUser(userName: string, userColor: string) {
@@ -14,8 +14,8 @@ async function simulateBrowserUser(userName: string, userColor: string) {
     const { HttpPollingClient } = require('../services/http-polling-client');
     
     const client = new HttpPollingClient(
-        NGROK_URL,
-        AUCTION_ID,
+        BROWSER_TEST_NGROK_URL,
+        BROWSER_TEST_AUCTION_ID,
         `browser_user_${userName.toLowerCase()}_${Date.now()}`,
         2000 // Poll every 2 seconds for better user experience
     );
@@ -61,7 +61,7 @@ async function simulateRealUserBidding() {
         console.log(`\n💸 ${bid.user} places bid: ${bid.amount}π`);
         
         try {
-            const response = await fetch(`${NGROK_URL}/api/http-poll?action=update`, {
+            const response = await fetch(`${BROWSER_TEST_NGROK_URL}/api/http-poll?action=update`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -69,7 +69,7 @@ async function simulateRealUserBidding() {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 },
                 body: JSON.stringify({
-                    auctionId: AUCTION_ID,
+                    auctionId: BROWSER_TEST_AUCTION_ID,
                     newBid: bid.amount,
                     bidder: bid.user.toLowerCase(),
                     type: 'bid_update'
@@ -99,11 +99,11 @@ async function simulateRealUserBidding() {
 }
 
 // Finalize auction
-async function finalizeAuction() {
+async function finalizeBrowserAuction() {
     console.log("\n🏁 Finalizing auction...");
     
     try {
-        const response = await fetch(`${NGROK_URL}/api/http-poll?action=update`, {
+        const response = await fetch(`${BROWSER_TEST_NGROK_URL}/api/http-poll?action=update`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -111,7 +111,7 @@ async function finalizeAuction() {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             },
             body: JSON.stringify({
-                auctionId: AUCTION_ID,
+                auctionId: BROWSER_TEST_AUCTION_ID,
                 newBid: 200.00,
                 bidder: "charlie",
                 type: 'auction_finalized'
@@ -137,8 +137,8 @@ async function finalizeAuction() {
 // Main browser simulation
 async function runBrowserSimulation() {
     console.log("🚀 Starting real browser user simulation...");
-    console.log(`🔗 Ngrok Tunnel: ${NGROK_URL}`);
-    console.log(`🎯 Auction: ${AUCTION_ID}`);
+    console.log(`🔗 Ngrok Tunnel: ${BROWSER_TEST_NGROK_URL}`);
+    console.log(`🎯 Auction: ${BROWSER_TEST_AUCTION_ID}`);
     console.log(`👥 Simulating: Alice, Bob, Charlie, Diana`);
     
     // Create multiple browser users
@@ -173,7 +173,7 @@ async function runBrowserSimulation() {
     const bidCount = await simulateRealUserBidding();
     
     // Finalize auction
-    await finalizeAuction();
+    await finalizeBrowserAuction();
     
     // Wait a bit more for final updates
     await new Promise(resolve => setTimeout(resolve, 2000));

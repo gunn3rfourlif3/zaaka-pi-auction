@@ -1,12 +1,8 @@
 import 'dotenv/config';
-import pg from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './src/generated/client/client';
+import { PrismaClient } from '@prisma/client';
 
 async function runGlobalAnalytics() {
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-  const adapter = new PrismaPg(pool);
-  const prisma = new PrismaClient({ adapter });
+  const prisma = new PrismaClient();
 
   try {
     console.log("📈 --- ZAAKA MARKETPLACE ANALYTICS --- 📈\n");
@@ -17,7 +13,7 @@ async function runGlobalAnalytics() {
       _sum: { amount: true },
       _count: { id: true },
       where: {
-        pi_txid: { not: null } 
+        pi_payment_id: { not: null } 
       }
     });
 
@@ -41,7 +37,7 @@ async function runGlobalAnalytics() {
   } catch (error: any) {
     console.error(`❌ ANALYTICS ERROR: ${error.message}`);
   } finally {
-    await pool.end();
+    await prisma.$disconnect();
   }
 }
 

@@ -101,7 +101,6 @@ export function useWebSocketConnection(
 
                 socket.on('connect_error', (err) => {
                     console.error(`❌ Socket.IO connection error:`, err.message);
-                    console.error(`   Type: ${err.type}`);
                     console.error(`   Transport: ${socket.io.engine.transport.name}`);
                     
                     setError(`Socket.IO connection failed: ${err.message}`);

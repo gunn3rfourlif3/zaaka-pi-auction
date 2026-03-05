@@ -1,13 +1,9 @@
 
 import 'dotenv/config';
-import pg from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './src/generated/client/client';
+import { PrismaClient } from '@prisma/client';
 
 async function getLiveFeed() {
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-  const adapter = new PrismaPg(pool);
-  const prisma = new PrismaClient({ adapter });
+  const prisma = new PrismaClient();
 
   try {
     console.log("🏪 Fetching Zaaka Live Marketplace Feed...\n");
@@ -15,15 +11,15 @@ async function getLiveFeed() {
     const auctions = await prisma.auctions.findMany({
       where: {
         status: 'ACTIVE',
-        end_time: { gt: new Date() } // Only show auctions that haven't expired
+        expires_at: { gt: new Date() } // Only show auctions that haven't expired
       },
       orderBy: {
-        end_time: 'asc' // ⏱️ Soonest to expire at the top (Urgency!)
+        expires_at: 'asc' // ⏱️ Soonest to expire at the top (Urgency!)
       },
       include: {
-        users: { // Get the seller's details
-          select: { username: true, zaaka_trust_score: true }
-        },
+        // users: { // Get the seller's details - users model not available
+        //   select: { username: true, zaaka_trust_score: true }
+        // },
         _count: {
           select: { bids: true } // Count how many bids have been placed
         }
@@ -36,11 +32,11 @@ async function getLiveFeed() {
     }
 
     auctions.forEach((item) => {
-      const timeLeft = Math.max(0, (item.end_time.getTime() - Date.now()) / (1000 * 60 * 60));
+      const timeLeft = Math.max(0, (item.expires_at.getTime() - Date.now()) / (1000 * 60 * 60));
       
       console.log(`📦 ITEM: ${item.title}`);
-      console.log(`👤 Seller: ${item.users.username} (Trust: ${item.users.zaaka_trust_score})`);
-      console.log(`💰 Current Bid: ${item.current_bid} Pi`);
+      console.log(`👤 Seller: ${item.seller_id}`);
+      console.log(`💰 Current Bid: ${item.currentBid} Pi`);
       console.log(`📈 Activity: ${item._count.bids} bids placed`);
       console.log(`⏳ Ending in: ${timeLeft.toFixed(1)} hours`);
       console.log("-------------------------------------------");
@@ -49,7 +45,7 @@ async function getLiveFeed() {
   } catch (error) {
     console.error("❌ FEED ERROR:", error);
   } finally {
-    await pool.end();
+    await prisma.$disconnect();
   }
 }
 

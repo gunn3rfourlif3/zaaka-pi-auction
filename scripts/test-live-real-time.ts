@@ -4,15 +4,15 @@ console.log("=".repeat(60));
 console.log("Testing actual bid updates through ngrok tunnel");
 console.log("=".repeat(60));
 
-const NGROK_URL = "https://nondefinitely-fibrinogenic-talitha.ngrok-free.dev";
-const TEST_AUCTION_ID = 2931; // Using the auction from your logs
+const LIVE_REAL_TIME_NGROK_URL = "https://nondefinitely-fibrinogenic-talitha.ngrok-free.dev";
+const LIVE_REAL_TIME_TEST_AUCTION_ID = 2931; // Using the auction from your logs
 
 async function testLiveBidUpdates() {
     console.log("🚀 Testing live bid updates...");
     
     // Test 1: Send a bid update
     console.log("\n1️⃣ Sending bid update...");
-    const bidResponse = await fetch(`${NGROK_URL}/api/http-poll?action=update`, {
+    const bidResponse = await fetch(`${LIVE_REAL_TIME_NGROK_URL}/api/http-poll?action=update`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -20,7 +20,7 @@ async function testLiveBidUpdates() {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         },
         body: JSON.stringify({
-            auctionId: TEST_AUCTION_ID,
+            auctionId: LIVE_REAL_TIME_TEST_AUCTION_ID,
             newBid: 300.00,
             bidder: 'live_test_user',
             type: 'bid_update'
@@ -37,7 +37,7 @@ async function testLiveBidUpdates() {
     
     // Test 2: Check if the update appears in the polling queue
     console.log("\n2️⃣ Checking polling queue...");
-    const pollResponse = await fetch(`${NGROK_URL}/api/http-poll?action=poll&auctionId=${TEST_AUCTION_ID}&clientId=test_client`, {
+    const pollResponse = await fetch(`${LIVE_REAL_TIME_NGROK_URL}/api/http-poll?action=poll&auctionId=${LIVE_REAL_TIME_TEST_AUCTION_ID}&clientId=test_client`, {
         method: 'GET',
         headers: {
             'ngrok-skip-browser-warning': 'true',
@@ -74,7 +74,7 @@ async function testMultiUserScenario() {
     for (let i = 0; i < users.length; i++) {
         console.log(`📡 ${users[i]} bidding ${bids[i]}π...`);
         
-        const response = await fetch(`${NGROK_URL}/api/http-poll?action=update`, {
+        const response = await fetch(`${LIVE_REAL_TIME_NGROK_URL}/api/http-poll?action=update`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -82,7 +82,7 @@ async function testMultiUserScenario() {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             },
             body: JSON.stringify({
-                auctionId: TEST_AUCTION_ID,
+                auctionId: LIVE_REAL_TIME_TEST_AUCTION_ID,
                 newBid: bids[i],
                 bidder: users[i],
                 type: 'bid_update'
@@ -102,10 +102,10 @@ async function testMultiUserScenario() {
     return true;
 }
 
-async function testAuctionFinalization() {
+async function testLiveAuctionFinalization() {
     console.log("\n🏁 Testing auction finalization...");
     
-    const response = await fetch(`${NGROK_URL}/api/http-poll?action=update`, {
+    const response = await fetch(`${LIVE_REAL_TIME_NGROK_URL}/api/http-poll?action=update`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -113,7 +113,7 @@ async function testAuctionFinalization() {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         },
         body: JSON.stringify({
-            auctionId: TEST_AUCTION_ID,
+            auctionId: LIVE_REAL_TIME_TEST_AUCTION_ID,
             newBid: 500.00,
             bidder: 'final_winner',
             type: 'auction_finalized'
@@ -136,7 +136,7 @@ async function runLiveTest() {
     
     const test1 = await testLiveBidUpdates();
     const test2 = await testMultiUserScenario();
-    const test3 = await testAuctionFinalization();
+    const test3 = await testLiveAuctionFinalization();
     
     console.log("\n" + "=".repeat(60));
     console.log("📊 LIVE TEST RESULTS");

@@ -1,43 +1,35 @@
 import 'dotenv/config';
-import pg from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './src/generated/client/client';
+import { PrismaClient } from '@prisma/client';
 
 async function showLeaderboard() {
-  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-  const adapter = new PrismaPg(pool);
-  const prisma = new PrismaClient({ adapter });
+  const prisma = new PrismaClient();
 
   try {
-    const topPioneers = await prisma.users.findMany({
-      orderBy: {
-        zaaka_trust_score: 'desc'
-      },
-      take: 5,
-      select: {
-        username: true,
-        zaaka_trust_score: true,
-        kyc_status: true
-      }
-    });
+    // Note: users model not available in current schema
+    console.log("❌ Leaderboard feature requires users model with zaaka_trust_score field");
+    return;
+    
+    // This would be the code if users model existed:
+    // const topPioneers = await prisma.users.findMany({
+    //   orderBy: {
+    //     zaaka_trust_score: 'desc'
+    //   },
+    //   take: 5,
+    //   select: {
+    //     username: true,
+    //     zaaka_trust_score: true,
+    //     kyc_status: true
+    //   }
+    // });
 
     console.log("\n🏆 --- ZAAKA TRUST LEADERBOARD --- 🏆");
-    console.log("Rank | Username          | Score | KYC");
+    console.log("Feature requires users model with zaaka_trust_score field");
     console.log("---------------------------------------");
-
-    topPioneers.forEach((user, index) => {
-      const rank = index + 1;
-      const kyc = user.kyc_status ? "✅" : "❌";
-      // Simple padding for clean columns
-      const name = user.username.padEnd(18);
-      console.log(`${rank}    | ${name} | ${user.zaaka_trust_score}   | ${kyc}`);
-    });
-    console.log("---------------------------------------\n");
 
   } catch (error) {
     console.error("❌ Leaderboard Error:", error);
   } finally {
-    await pool.end();
+    await prisma.$disconnect();
   }
 }
 

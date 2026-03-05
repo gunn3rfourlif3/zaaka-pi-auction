@@ -4,8 +4,8 @@ console.log("=".repeat(70));
 console.log("Demonstrating multiple users bidding in real-time through ngrok");
 console.log("=".repeat(70));
 
-const NGROK_URL = "https://nondefinitely-fibrinogenic-talitha.ngrok-free.dev";
-const AUCTION_ID = 2931;
+const MULTI_USER_NGROK_URL = "https://nondefinitely-fibrinogenic-talitha.ngrok-free.dev";
+const MULTI_USER_AUCTION_ID = 2931;
 
 // Simulate multiple users
 const users = [
@@ -24,8 +24,8 @@ async function createMultiUserClients() {
     
     for (const user of users) {
         const client = new HttpPollingClient(
-            NGROK_URL,
-            AUCTION_ID,
+            MULTI_USER_NGROK_URL,
+            MULTI_USER_AUCTION_ID,
             `multiuser_${user.name.toLowerCase()}_${Date.now()}`,
             1000 // Poll every second
         );
@@ -78,7 +78,7 @@ async function simulateRealisticBiddingWar(clients) {
         console.log(`\n💸 Bid #${bidCount}: ${bid.user} bids ${bid.amount}π`);
         
         try {
-            const response = await fetch(`${NGROK_URL}/api/http-poll?action=update`, {
+            const response = await fetch(`${MULTI_USER_NGROK_URL}/api/http-poll?action=update`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -86,7 +86,7 @@ async function simulateRealisticBiddingWar(clients) {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 },
                 body: JSON.stringify({
-                    auctionId: AUCTION_ID,
+                    auctionId: MULTI_USER_AUCTION_ID,
                     newBid: bid.amount,
                     bidder: bid.user.toLowerCase(),
                     type: 'bid_update'
@@ -116,7 +116,7 @@ async function finalizeAuction() {
     console.log("\n🏁 Finalizing auction...");
     
     try {
-        const response = await fetch(`${NGROK_URL}/api/http-poll?action=update`, {
+        const response = await fetch(`${MULTI_USER_NGROK_URL}/api/http-poll?action=update`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -124,7 +124,7 @@ async function finalizeAuction() {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             },
             body: JSON.stringify({
-                auctionId: AUCTION_ID,
+                auctionId: MULTI_USER_AUCTION_ID,
                 newBid: 800.00,
                 bidder: "diana",
                 type: 'auction_finalized'
@@ -160,8 +160,8 @@ function analyzeMultiUserPerformance() {
 // Main multi-user verification
 async function runMultiUserVerification() {
     console.log("🚀 Starting multi-user real-time verification...");
-    console.log(`🔗 Ngrok Tunnel: ${NGROK_URL}`);
-    console.log(`🎯 Auction: ${AUCTION_ID}`);
+    console.log(`🔗 Ngrok Tunnel: ${MULTI_USER_NGROK_URL}`);
+    console.log(`🎯 Auction: ${MULTI_USER_AUCTION_ID}`);
     console.log(`👥 Users: ${users.map(u => u.color + u.name).join(', ')}`);
     
     const clients = await createMultiUserClients();

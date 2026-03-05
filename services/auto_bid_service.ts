@@ -131,7 +131,7 @@ async function placeSystemBid(auctionId: number, bidderId: string, amount: numbe
 
   // Emit bid update via multi-layered system (HTTP polling + Socket.IO)
   try {
-      const baseUrl = getApiBaseUrl(req);
+      const baseUrl = getApiBaseUrl();
       
       // Try HTTP polling first (works with ngrok)
       await fetch(`${baseUrl}/api/http-poll?action=update`, {

@@ -125,12 +125,12 @@ export const PiAPI = {
             const recipientAddress = payment.recipient_address;
 
             // 2. Build Blockchain Transaction
-            const server = new StellarSdk.Server(HORIZON_URL);
+            const server = new StellarSdk.Horizon.Server(HORIZON_URL);
             const sourceKeypair = StellarSdk.Keypair.fromSecret(WALLET_PRIVATE_SEED!);
             const sourceAccount = await server.loadAccount(sourceKeypair.publicKey());
 
             const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-                fee: await server.fetchBaseFee(),
+                fee: (await server.fetchBaseFee()).toString(),
                 networkPassphrase: NETWORK,
                 timebounds: await server.fetchTimebounds(180)
             })

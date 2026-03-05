@@ -1,12 +1,12 @@
 import 'dotenv/config';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './src/generated/client/client';
+import { PrismaClient } from '@prisma/client';
 
 async function main() {
   const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   const adapter = new PrismaPg(pool);
-  const prisma = new PrismaClient({ adapter });
+  const prisma = new PrismaClient();
 
   try {
     console.log("🚀 Starting Force Sync & Seed...");
@@ -15,39 +15,34 @@ async function main() {
     await prisma.escrow_ledger.deleteMany();
     await prisma.bids.deleteMany();
     await prisma.auctions.deleteMany();
-    await prisma.users.deleteMany();
+    // Note: No users table in current schema
 
-    // 1. Create Users
-    const seller = await prisma.users.create({
-      data: { uid: 'u_seller', username: 'Pi_Merchant', kyc_status: true, zaaka_trust_score: 110 }
-    });
-    const buyer1 = await prisma.users.create({
-      data: { uid: 'u_buyer_1', username: 'Pioneer_Alpha', kyc_status: true, zaaka_trust_score: 105 }
-    });
+    // 1. Create Users (Note: No users table in current schema)
+    // Using hardcoded user IDs for auction creation
+    const sellerId = 'u_seller';
+    const buyer1Id = 'u_buyer_1';
 
     // 2. Create an ACTIVE Auction
     const activeAuction = await prisma.auctions.create({
       data: {
-        seller_id: seller.uid,
+        seller_id: sellerId,
         title: 'Rare Pi Network Commemorative Coin',
         description: 'Physical coin from 2024 event.',
-        start_price: 10.0,
-        current_bid: 12.5,
+        currentBid: 12.5,
         status: 'ACTIVE',
-        end_time: new Date(Date.now() + 86400000)
+        expires_at: new Date(Date.now() + 86400000)
       }
     });
 
     // 3. Create a COMPLETED Auction
     const closedAuction = await prisma.auctions.create({
       data: {
-        seller_id: seller.uid,
+        seller_id: sellerId,
         title: 'Vintage Pi T-Shirt',
         description: 'Sold and delivered.',
-        start_price: 5.0,
-        current_bid: 15.0,
+        currentBid: 15.0,
         status: 'COMPLETED',
-        end_time: new Date(Date.now() - 86400000)
+        expires_at: new Date(Date.now() - 86400000)
       }
     });
 
@@ -56,14 +51,13 @@ async function main() {
       data: {
         amount: 15.0,
         payment_status: 'RELEASED', // Recognized by Prisma!
-        pi_txid: 'pi_tx_999888777',
-        seller_id: seller.uid,
+        pi_payment_id: 'pi_tx_999888777',
+        seller_id: sellerId,
+        winner_id: buyer1Id,
         auctions: {
           connect: { id: closedAuction.id }
         },
-        users: {
-          connect: { uid: buyer1.uid }
-        }
+        // Note: No users table in current schema
       }
     });
 
@@ -73,7 +67,7 @@ async function main() {
   } catch (e) {
     console.error("❌ SEED FAILED:", e);
   } finally {
-    await pool.end();
+    await prisma.$disconnect();
   }
 }
 

@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
-//import { PrismaClient } from './src/generated/client/client';
+//import { PrismaClient } from '@prisma/client';
 import { PrismaClient } from '@prisma/client';
 import { processAuctionEscrow } from './services/settlement_service';
 import { confirmDeliveryAndPayout } from './services/payout_service';
@@ -9,25 +9,17 @@ import { confirmDeliveryAndPayout } from './services/payout_service';
 // 1. Setup the Database Adapter (Required for your XAMPP/Postgres setup)
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient();
 
 // ... (Your existing imports and adapter setup)
 
 async function runMockTest() {
   console.log("📡 Connecting to Database...");
   try {
-    // Step 0: User Setup
-    console.log("👤 Step 0: Ensuring Mock Users exist in DB...");
-    await prisma.users.upsert({
-      where: { uid: "seller_pioneer_999" },
-      update: {},
-      create: { uid: "seller_pioneer_999", username: "TestSeller", zaaka_trust_score: 100 }
-    });
-    await prisma.users.upsert({
-      where: { uid: "buyer_pioneer_111" },
-      update: {},
-      create: { uid: "buyer_pioneer_111", username: "TestBuyer", zaaka_trust_score: 100 }
-    });
+    // Step 0: User Setup (Note: No users table in current schema)
+    console.log("👤 Step 0: Using hardcoded user IDs...");
+    const sellerId = "seller_pioneer_999";
+    const buyerId = "buyer_pioneer_111";
 
     // Step 1: Create Auction
     console.log("🏗️ Step 1: Creating Mock Auction...");
@@ -37,14 +29,13 @@ async function runMockTest() {
         description: "Protocol testing",
         status: "ACTIVE",
         seller_id: "seller_pioneer_999",
-        end_time: new Date(Date.now() - 10000), 
-        start_price: 10.0,
+        expires_at: new Date(Date.now() - 10000), 
+        currentBid: 10.0,
         bids: {
           create: {
             amount: 25.0,
             bidder_id: "buyer_pioneer_111",
-            pi_payment_id: `pay_mock_${Math.random().toString(36).substring(7)}`,
-            status: "APPROVED"
+            pi_payment_id: `pay_mock_${Math.random().toString(36).substring(7)}`
           }
         }
       }
@@ -58,7 +49,7 @@ async function runMockTest() {
 
     // Step 3: Payout
     console.log("🔄 Step 3: Running Buyer Confirmation & Payout...");
-    const result = await confirmDeliveryAndPayout(auction.id, "buyer_pioneer_111", prisma);
+    const result = await confirmDeliveryAndPayout(auction.id, "buyer_pioneer_111");
 
     if (result.success) {
         console.log(`✅ Payout Successful! TXID: ${result.txid}`);
@@ -69,7 +60,7 @@ async function runMockTest() {
     console.error("❌ TEST FAILED:", error);
   } finally {
     await prisma.$disconnect();
-    await pool.end();
+    await prisma.$disconnect();
     console.log("🔌 Database connections closed.");
   }
 }

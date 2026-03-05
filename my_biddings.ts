@@ -1,12 +1,12 @@
 import 'dotenv/config';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './src/generated/client/client';
+import { PrismaClient } from '@prisma/client';
 
 async function getMyBiddingDashboard(userId: string) {
   const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   const adapter = new PrismaPg(pool);
-  const prisma = new PrismaClient({ adapter });
+  const prisma = new PrismaClient();
 
   try {
     console.log(`👤 Fetching Bidding Dashboard for: ${userId}...\n`);
@@ -37,7 +37,7 @@ async function getMyBiddingDashboard(userId: string) {
 
     auctions.forEach((auction) => {
       const myMaxBid = Number(auction.bids[0].amount);
-      const currentPrice = Number(auction.current_bid);
+      const currentPrice = Number(auction.currentBid);
       
       let statusIcon = "";
       let resultText = "";
@@ -73,7 +73,7 @@ async function getMyBiddingDashboard(userId: string) {
   } catch (error) {
     console.error("❌ DASHBOARD ERROR:", error);
   } finally {
-    await pool.end();
+    await prisma.$disconnect();
   }
 }
 

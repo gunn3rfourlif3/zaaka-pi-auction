@@ -4,7 +4,7 @@ console.log("=".repeat(70));
 console.log("This demonstrates that bid updates work instantly through ngrok");
 console.log("=".repeat(70));
 
-const NGROK_URL = "https://nondefinitely-fibrinogenic-talitha.ngrok-free.dev";
+const LIVE_DEMO_NGROK_URL = "https://nondefinitely-fibrinogenic-talitha.ngrok-free.dev";
 const AUCTION_ID = 2931;
 
 // Create a live HTTP polling client
@@ -14,7 +14,7 @@ async function createLiveClient() {
     const { HttpPollingClient } = require('../services/http-polling-client');
     
     const client = new HttpPollingClient(
-        NGROK_URL,
+        LIVE_DEMO_NGROK_URL,
         AUCTION_ID,
         `live_demo_${Date.now()}`,
         1000 // Poll every second
@@ -70,7 +70,7 @@ async function sendLiveBidUpdates() {
         console.log(`💸 Sending bid: ${bid.amount}π by ${bid.bidder}`);
         
         try {
-            const response = await fetch(`${NGROK_URL}/api/http-poll?action=update`, {
+            const response = await fetch(`${LIVE_DEMO_NGROK_URL}/api/http-poll?action=update`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -108,7 +108,7 @@ async function sendAuctionFinalization() {
     console.log("\n🏁 Sending auction finalization...");
     
     try {
-        const response = await fetch(`${NGROK_URL}/api/http-poll?action=update`, {
+        const response = await fetch(`${LIVE_DEMO_NGROK_URL}/api/http-poll?action=update`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -137,7 +137,7 @@ async function sendAuctionFinalization() {
 // Main live demonstration
 async function runLiveDemonstration() {
     console.log("🚀 Starting live real-time bid update demonstration...");
-    console.log(`🔗 Connecting to ngrok tunnel: ${NGROK_URL}`);
+    console.log(`🔗 Connecting to ngrok tunnel: ${LIVE_DEMO_NGROK_URL}`);
     console.log(`🎯 Target auction: ${AUCTION_ID}`);
     console.log(``);
     

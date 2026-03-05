@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from './src/generated/client/client';
+import { PrismaClient } from '@prisma/client';
 // Imagine PiAPI is your Pi SDK v26 wrapper for server-side calls
 import { PiAPI } from './lib/pi_api'; 
 
@@ -9,7 +9,7 @@ import { PiAPI } from './lib/pi_api';
 async function processAuctionEscrow(auctionId: number) {
   const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   const adapter = new PrismaPg(pool);
-  const prisma = new PrismaClient({ adapter });
+  const prisma = new PrismaClient();
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -47,26 +47,30 @@ if (!auction || (auction.status !== 'ACTIVE' && auction.status !== 'COMPLETED'))
       // 4. Create Escrow Ledger Entry (Direction: IN)
       const escrow = await tx.escrow_ledger.create({
         data: {
-          pi_txid: blockchainSettlement.txid, // Native Stellar/Pi TxID
+          pi_payment_id: blockchainSettlement.txid, // Native Stellar/Pi TxID
           amount: winner.amount,
-          direction: "IN", // Matches your schema blueprint
-          timestamp: new Date(),
-          // Connect to auction and winner
-          auctions: { connect: { id: auctionId } },
-          users: { connect: { uid: winner.bidder_id } }
+          payment_status: 'RELEASED',
+          payout_status: 'COMPLETED',
+          auction_id: auctionId,
+          winner_id: winner.bidder_id,
+          seller_id: auction.seller_id
         }
       });
 
       return { winner: winner.bidder_id, amount: winner.amount, txid: blockchainSettlement.txid };
     });
 
-    console.log(`🏆 Winner: ${result.winner} | Amount: ${result.amount} Pi`);
-    console.log(`🔒 Escrow Settled on Chain (Tx: ${result.txid}).`);
+    if (typeof result === 'string') {
+      console.log(result);
+    } else {
+      console.log(`🏆 Winner: ${result.winner} | Amount: ${result.amount} Pi`);
+      console.log(`🔒 Escrow Settled on Chain (Tx: ${result.txid}).`);
+    }
 
   } catch (error: any) {
     console.error(`❌ SETTLEMENT ERROR: ${error.message}`);
   } finally {
-    await pool.end();
+    await prisma.$disconnect();
   }
 }
 
