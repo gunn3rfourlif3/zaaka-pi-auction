@@ -4,6 +4,11 @@ import { MessageModal } from '../components/MessageModal';
 import { useEnhancedWebSocketConnection } from '../hooks/useEnhancedWebSocketConnection';
 import { EnhancedAuctionCreation } from '../components/EnhancedAuctionCreation';
 import dynamic from 'next/dynamic';
+import { toast } from 'react-hot-toast';
+import Swal from 'sweetalert2';
+import withReactContent from 'sweetalert2-react-content';
+
+const MySwal = withReactContent(Swal);
 
 const StandardAuctionCreation = dynamic(() => 
   import('../components/StandardAuctionCreation').then(mod => mod.StandardAuctionCreation), {
@@ -17,8 +22,7 @@ import {
 
   Search, Bell, Timer, TrendingUp,
 
-  ChevronRight, Wallet, Home, Trophy, Plus, Heart, MessageSquare, Check
-
+  ChevronRight, Wallet, Home, Trophy, Plus, Heart, MessageSquare, Check, Clock
 } from 'lucide-react';
 
 
@@ -265,7 +269,7 @@ const [watchlist, setWatchlist] = useState<number[]>([]);
       return prev;
     });
 
-    alert(`Auction ended! Winner: ${data.winnerId}`);
+    toast.success(`Auction ended! Winner: ${data.winnerId}`);
   }, []);
 
   const { status, transport, socketId, error, reconnect, connectionStats } = useEnhancedWebSocketConnection(
@@ -279,7 +283,7 @@ const [watchlist, setWatchlist] = useState<number[]>([]);
     console.log(`📡 Connection Status: ${status} (${transport})${socketId ? ` - ID: ${socketId}` : ''}${error ? ` - Error: ${error}` : ''}`);
     
     if (status === 'failed') {
-      alert(`Real-time connection failed: ${error}. Please refresh the page.`);
+      toast.error(`Real-time connection failed: ${error}. Please refresh the page.`);
     }
   }, [status, transport, socketId, error]);
 
@@ -298,7 +302,7 @@ const [watchlist, setWatchlist] = useState<number[]>([]);
     if (mockUsername) {
       setUser({ username: mockUsername, uid: `mock_${mockUsername}_uid` });
       // Clear any existing session data if needed
-      alert(`Logged in as ${mockUsername} (Mock Mode)`);
+      toast.success(`Logged in as ${mockUsername} (Mock Mode)`);
     }
   };
   // ------------------------------
@@ -372,91 +376,79 @@ useEffect(() => {
 }, [watchlist, user]);
 
 const toggleWatchlist = (e: React.MouseEvent, id: number) => {
-  e.stopPropagation();
-  e.preventDefault();
+    e.stopPropagation();
+    e.preventDefault();
 
-  if (!user) {
-    alert("Please log in to manage your watchlist.");
-    handleLogin();
-    return;
-  }
-
-  setWatchlist(prev => 
-    prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-  );
-};
-
-
-
-
-
-const handleCancelAuction = async () => {
-
-  if (!selectedItem || !user) return;
-
- 
-
-  const confirmCancel = confirm("Are you sure you want to cancel this auction? It will be removed from the marketplace.");
-
-  if (!confirmCancel) return;
-
-
-
-  setLoading(true);
-
-  try {
-
-    const res = await fetch('/api/auctions/status', {
-
-      method: 'PATCH',
-
-      headers: { 'Content-Type': 'application/json' },
-
-      body: JSON.stringify({
-
-        id: selectedItem.id,
-
-        sellerId: user.username.replace('@', ''),
-
-        status: 'CANCELLED'
-
-      })
-
-    });
-
-
-
-    if (res.ok) {
-
-      alert("Auction successfully cancelled.");
-
-      setSelectedItem(null);
-
-      setView('inventory'); // Take them back to their inventory
-
-      fetchItems(); // Refresh the data
-
-    } else {
-
-      const err = await res.json();
-
-      alert(err.error || "Failed to cancel auction.");
-
+    if (!user) {
+      toast.error("Please log in to manage your watchlist.");
+      handleLogin();
+      return;
     }
 
-  } catch (error) {
+    setWatchlist(prev => {
+      const isAdded = !prev.includes(id);
+      if (isAdded) toast.success("Added to watchlist");
+      else toast.success("Removed from watchlist");
+      return isAdded ? [...prev, id] : prev.filter(i => i !== id);
+    });
+  };
 
-    console.error("Cancel error:", error);
 
-    alert("An error occurred while cancelling the auction.");
 
-  } finally {
 
-    setLoading(false);
 
-  }
+const [isCancelling, setIsCancelling] = useState(false);
 
-};
+const handleCancelAuction = async () => {
+    if (isCancelling) return; // Prevent double clicks
+    if (!selectedItem || !user) return;
+
+    MySwal.fire({
+      title: 'Cancel Auction?',
+      text: "It will be permanently removed from the marketplace.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, cancel it!'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        setIsCancelling(true);
+        try {
+          const res = await fetch('/api/auctions/status', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: selectedItem.id,
+              sellerId: user.username.replace('@', ''),
+              status: 'CLOSED'
+            })
+          });
+
+          if (res.ok) {
+            MySwal.fire(
+              'Cancelled!',
+              'Your auction has been cancelled.',
+              'success'
+            );
+            setSelectedItem(null);
+            setView('inventory');
+            fetchItems();
+          } else {
+            const err = await res.json();
+            MySwal.fire('Error', err.error || "Failed to cancel auction.", 'error');
+          }
+        } catch (error) {
+          console.error("Cancel failed:", error);
+          MySwal.fire('Error', "An error occurred while cancelling.", 'error');
+        } finally {
+          setIsCancelling(false);
+        }
+      }
+    });
+  };
+
+
 
 
 
@@ -666,11 +658,11 @@ const getTimeRemaining = (expiryDate: string) => {
   const handleLogin = async () => {
     if (isInitializing) return;
 
-    if (!(window as any).Pi) { alert("Pi SDK not found! Use Pi Browser."); return; }
+    if (!(window as any).Pi) { toast.error("Pi SDK not found! Use Pi Browser."); return; }
 
     if (!isPiSupportedEnv()) {
       setShowEnvWarning(true);
-      alert("Please open this app in the Pi Browser (mobile) or Pi Sandbox (desktop) to connect your wallet.");
+      toast.error("Please open this app in the Pi Browser (mobile) or Pi Sandbox (desktop) to connect your wallet.");
       return;
     }
 
@@ -707,7 +699,7 @@ const getTimeRemaining = (expiryDate: string) => {
           } else {
             const errorData = await res.json();
             console.error("Failed to recover payment:", errorData);
-            alert(`Payment recovery failed: ${errorData.details || "Unknown error"}`);
+            toast.error(`Payment recovery failed: ${errorData.details || "Unknown error"}`);
           }
         } catch (error) {
           console.error("Failed to handle pending payment:", error);
@@ -723,12 +715,25 @@ const getTimeRemaining = (expiryDate: string) => {
   };
 
   const handleLogout = () => {
-    if (confirm("Are you sure you want to logout?")) {
-      setUser(null);
-      setView('market');
-      // Reset any local storage or session state if needed
-      // Since user state drives most visibility, clearing it is usually enough
-    }
+    MySwal.fire({
+      title: 'Are you sure?',
+      text: "Do you really want to logout?",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes, logout!'
+    }).then((result) => {
+      if (result.isConfirmed) {
+        setUser(null);
+        setView('market');
+        MySwal.fire(
+          'Logged Out!',
+          'You have been logged out successfully.',
+          'success'
+        );
+      }
+    });
   };
 
 
@@ -743,7 +748,7 @@ const getTimeRemaining = (expiryDate: string) => {
     const incomingBid = parseFloat(bidAmount);
 
     if (!bidAmount || isNaN(incomingBid) || incomingBid <= currentPrice) {
-      alert(`Please enter a bid higher than ${currentPrice.toFixed(2)}.`);
+      toast.error(`Please enter a bid higher than ${currentPrice.toFixed(2)}.`);
       return;
     }
 
@@ -753,18 +758,18 @@ const getTimeRemaining = (expiryDate: string) => {
       const minValidMaxBid = incomingBid + 0.1; // Must be at least 0.1 higher than current bid
       
       if (maxBidValue <= incomingBid) {
-        alert(`Max bid (${maxBidValue.toFixed(2)}) must be higher than your current bid (${incomingBid.toFixed(2)}).`);
+        toast.error(`Max bid (${maxBidValue.toFixed(2)}) must be higher than your current bid (${incomingBid.toFixed(2)}).`);
         return;
       }
       
       if (maxBidValue < minValidMaxBid) {
-        alert(`Max bid must be at least ${minValidMaxBid.toFixed(2)} π (0.1 higher than your bid).`);
+        toast.error(`Max bid must be at least ${minValidMaxBid.toFixed(2)} π (0.1 higher than your bid).`);
         return;
       }
       
       // Validate against auction current price (defensive check)
       if (maxBidValue <= Number(selectedItem.currentBid)) {
-        alert(`Max bid must be higher than the current auction price (${Number(selectedItem.currentBid).toFixed(2)} π).`);
+        toast.error(`Max bid must be higher than the current auction price (${Number(selectedItem.currentBid).toFixed(2)} π).`);
         return;
       }
     }
@@ -789,7 +794,7 @@ const getTimeRemaining = (expiryDate: string) => {
         
         if (!approveRes.ok) {
            const err = await approveRes.json();
-           alert(err.error || "Mock Validation Failed");
+           toast.error(err.error || "Mock Validation Failed");
            setIsPaying(false);
            return;
         }
@@ -826,14 +831,14 @@ const getTimeRemaining = (expiryDate: string) => {
            setBidAmount('');
            setMaxBidAmount('');
            fetchItems();
-           alert("Mock Bid successful! (Test Mode)");
+           toast.success("Mock Bid successful! (Test Mode)");
         } else {
-           alert("Mock Bid failed.");
+           toast.error("Mock Bid failed.");
            setIsPaying(false);
         }
       } catch (e) {
         console.error(e);
-        alert("Mock Bid error");
+        toast.error("Mock Bid error");
         setIsPaying(false);
       }
       return;
@@ -867,7 +872,7 @@ const getTimeRemaining = (expiryDate: string) => {
 
       if (!checkRes.ok) {
 
-        alert(checkData.error || "Validation failed.");
+        toast.error(checkData.error || "Validation failed.");
 
         setIsPaying(false);
 
@@ -878,116 +883,98 @@ const getTimeRemaining = (expiryDate: string) => {
 
 
       await (window as any).Pi.createPayment({
-
         amount: parseFloat(bidAmount),
-
         memo: `Bid for ${selectedItem.title} on Zaaka`,
-
         metadata: { 
           auctionId: selectedItem.id, 
           buyerUid: user.uid,
           buyerUsername: user.username.replace('@', ''),
           maxBid: maxBidAmount // Include Max Bid in Pi Metadata
         },
-
       }, {
-
         onReadyForServerApproval: async (paymentId: string) => {
-
-          const res = await fetch('/api/payments/approve', {
-
-            method: 'POST',
-
-            headers: { 
-              'Content-Type': 'application/json',
-              'ngrok-skip-browser-warning': 'true'
-            },
-
-            body: JSON.stringify({ paymentId })
-
-          });
-
-          return res.ok;
-
+          console.log("Payment waiting for approval:", paymentId);
+          try {
+            const res = await fetch('/api/payments/approve', {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true'
+              },
+              body: JSON.stringify({ paymentId })
+            });
+            
+            if (!res.ok) {
+              const err = await res.json();
+              console.error("Approval failed:", err);
+              throw new Error(err.error || "Approval failed");
+            }
+            
+            console.log("Payment approved by server");
+            return { status: "OK", paymentId }; // Return object as expected by some SDK versions or just resolve
+          } catch (e) {
+            console.error("Approval error:", e);
+            throw e;
+          }
         },
+        onReadyForServerCompletion: async (paymentId: string, txid: string) => {
+          console.log("Payment waiting for completion:", paymentId, txid);
+          try {
+            // 1. Send completion request to server
+            const res = await fetch('/api/payments/complete', {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'ngrok-skip-browser-warning': 'true'
+              },
+              body: JSON.stringify({ paymentId, txid })
+            });
 
-onReadyForServerCompletion: async (paymentId: string, txid: string) => {
+            if (!res.ok) {
+               console.error("Completion endpoint returned error");
+               // Even if server fails to record, Pi SDK needs to know we tried. 
+               // But ideally we throw to let SDK handle retry or error.
+            }
 
-// 1. Fire and forget the server completion
+            // 2. Immediate UI Update (Optimistic)
+            const newBidValue = parseFloat(bidAmount);
+            if (selectedItem && user) {
+              setSelectedItem((prev: any) => ({
+                ...prev,
+                currentBid: newBidValue,
+                bids: [{ bidder_id: user.username.replace('@', ''), amount: newBidValue }, ...(prev.bids || [])],
+                _count: { ...prev._count, bids: (prev._count?.bids || 0) + 1 }
+              }));
+            }
 
-fetch('/api/payments/complete', {
-
-method: 'POST',
-
-headers: { 
-  'Content-Type': 'application/json',
-  'ngrok-skip-browser-warning': 'true'
-},
-
-body: JSON.stringify({ paymentId, txid })
-
-});
-
-
-
-// 2. Immediate UI Update
-
-const newBidValue = parseFloat(bidAmount);
-
-
-
-// Update the view state manually so the price changes right now
-
-if (selectedItem && user) {
-
-setSelectedItem((prev: any) => ({
-
-...prev,
-
-currentBid: newBidValue,
-
-bids: [{ bidder_id: user.username.replace('@', ''), amount: newBidValue }, ...(prev.bids || [])],
-
-_count: { ...prev._count, bids: (prev._count?.bids || 0) + 1 }
-
-}));
-
-}
-
-
-
-// 3. Close everything immediately
-
-setIsPaying(false);
-
-setIsBidModalOpen(false);
-
-setBidAmount('');
-
-
-
-// 4. Refresh the big list in the background (no 'await' here)
-
-fetchItems();
-
-
-
-alert("Bid successful!");
-
-},
-
-        onCancel: () => setIsPaying(false),
-
-        onError: (err: Error) => { alert(err.message); setIsPaying(false); }
-
+            // 3. Close modal
+            setIsPaying(false);
+            setIsBidModalOpen(false);
+            setBidAmount('');
+            setMaxBidAmount('');
+            fetchItems(); // Refresh full state
+            
+            return { status: "COMPLETED", paymentId };
+          } catch (e) {
+            console.error("Completion error:", e);
+            throw e;
+          }
+        },
+        onCancel: (paymentId: string) => { 
+          console.log("Payment cancelled:", paymentId);
+          setIsPaying(false); 
+        },
+        onError: (error: Error, payment: any) => { 
+          console.error("Payment error:", error, payment);
+          setIsPaying(false);
+          toast.error(`Payment failed: ${error.message}`);
+        },
       });
 
     } catch (err) {
-
+      console.error("Payment flow error:", err);
       setIsPaying(false);
-
     }
-
   };
 
 const handleAutoSettle = useCallback(async (auctionId: number, itemSellerId: string) => {
@@ -1026,17 +1013,17 @@ const handleConfirmReceipt = async (auctionId: number) => {
     });
 
     if (res.ok) {
-      alert("Receipt confirmed! The auction has been removed from your bids.");
+      toast.success("Receipt confirmed! The auction has been removed from your bids.");
       setSelectedItem(null);
       setView('market');
       fetchItems();
     } else {
       const err = await res.json();
-      alert(err.error || "Failed to confirm receipt.");
+      toast.error(err.error || "Failed to confirm receipt.");
     }
   } catch (error) {
     console.error("Receipt error:", error);
-    alert("An error occurred.");
+    toast.error("An error occurred.");
   } finally {
     setLoading(false);
   }
@@ -1327,7 +1314,7 @@ const handleConfirmReceipt = async (auctionId: number) => {
           <div className="animate-in fade-in slide-in-from-bottom duration-500">
             <EnhancedAuctionCreation
               onAuctionCreated={(auction) => {
-                alert("Success! Your auction is live.");
+                toast.success("Success! Your auction is live.");
                 setUseStandardCreate(false);
                 setView('inventory');
                 fetchItems();
@@ -1379,11 +1366,41 @@ const handleConfirmReceipt = async (auctionId: number) => {
               </div>
 
               <div className="p-5">
-                <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter mb-1">{item.title}</h4>
-                <div className="flex justify-between items-center mt-4">
-                  <p className="text-xl font-black text-gray-900 italic leading-none bid-amount" data-auction-id={item.id}>{Number(item.currentBid).toFixed(2)} π</p>
+                <div className="flex justify-between items-start mb-2">
+                  <h4 className="text-lg font-black text-gray-900 italic uppercase tracking-tighter mb-1">{item.title}</h4>
+                  <span className="px-2 py-1 rounded-lg bg-gray-100 text-[8px] font-black uppercase tracking-widest text-gray-500">
+                    {item.category}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest mb-1">Highest Bid</p>
+                    <p className="text-lg font-black text-gray-900 italic leading-none bid-amount" data-auction-id={item.id}>
+                      {Number(item.currentBid).toFixed(2)} π
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-[8px] font-black uppercase text-gray-400 tracking-widest mb-1">Total Bids</p>
+                    <p className="text-lg font-black text-gray-900 italic leading-none">
+                      {item.bids ? item.bids.length : 0}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2 text-gray-500">
+                    <Clock size={14} />
+                    <span className="text-[10px] font-bold uppercase tracking-widest auction-timer" data-expires={item.expires_at}>
+                      <AuctionTimer 
+                        expiryDate={item.expires_at}
+                        status={item.status}
+                        onEnd={() => handleAutoSettle(item.id, item.seller_id)} 
+                      />
+                    </span>
+                  </div>
                   <button onClick={() => { setSelectedItem(item); setView('detail'); }}
-                    className="px-6 py-3 rounded-2xl bg-gray-100 text-[#1A1D21] font-black uppercase text-[9px] tracking-widest">
+                    className="px-6 py-3 rounded-2xl bg-[#1A1D21] text-white font-black uppercase text-[9px] tracking-widest hover:bg-gray-800 transition-colors">
                     Manage
                   </button>
                 </div>
@@ -1529,37 +1546,37 @@ const handleConfirmReceipt = async (auctionId: number) => {
             <p className="text-gray-500 leading-relaxed mb-8 text-sm">{selectedItem.description || "No description provided."}</p>
 
             {/* STATS GRID */}
-            <div className="grid grid-cols-2 gap-4 mb-10">
-              <div className="bg-white p-6 rounded-[32px] border border-gray-50 shadow-sm">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
-                  {isClosed ? (isSeller ? "Final Sale Price" : "Final Price") : (isSeller ? "Total Bids" : "Highest Bid")}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="bg-white p-4 rounded-[24px] border border-gray-50 shadow-sm relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-12 h-12 bg-green-50 rounded-bl-[24px] -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
+                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 relative z-10">
+                  {isClosed ? (isSeller ? "Final Sale Price" : "Final Price") : (isSeller ? "Highest Bid" : "Highest Bid")}
                 </p>
-                <p className="text-xl font-black text-green-500 italic bid-amount" data-auction-id={selectedItem.id}>
+                <p className="text-xl font-black text-green-500 italic bid-amount relative z-10" data-auction-id={selectedItem.id}>
                   {isClosed 
                     ? `${Number(selectedItem.currentBid).toFixed(2)} π`
-                    : (isSeller 
-                      ? (selectedItem._count?.bids || 0) 
-                      : `${Number(selectedItem.currentBid).toFixed(2)} π`
-                    )
+                    : `${Number(selectedItem.currentBid).toFixed(2)} π`
                   }
                 </p>
                 {!isSeller && !isClosed && (
-                  <p className="text-[9px] font-black text-blue-500 uppercase mt-1 italic opacity-70">
-                    {/* Fallback to 'Unknown' if bids array is empty or bidder_id is missing */}
+                  <p className="text-[8px] font-black text-blue-500 uppercase mt-1 italic opacity-70 relative z-10">
                     by @{selectedItem.bids?.[0]?.bidder_id || "..."}
                   </p>
                 )}
               </div>
 
-              <div className="bg-white p-6 rounded-[32px] border border-gray-50 shadow-sm">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
-                  {isClosed ? "Auction Status" : "Ends In"}
+              <div className="bg-white p-4 rounded-[24px] border border-gray-50 shadow-sm relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-12 h-12 bg-blue-50 rounded-bl-[24px] -mr-2 -mt-2 transition-transform group-hover:scale-110"></div>
+                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 relative z-10">
+                  {isClosed ? "Auction Status" : (isSeller ? "Total Bids" : "Ends In")}
                 </p>
-                <p className="text-xl font-black italic uppercase">
+                <p className="text-xl font-black italic uppercase relative z-10">
                   {selectedItem.status === 'CANCELLED' ? (
                     <span className="text-gray-300 text-sm">CANCELLED</span>
                   ) : isClosed ? (
                     <span className="text-red-500">CLOSED</span>
+                  ) : isSeller ? (
+                    <span className="text-blue-600">{selectedItem.bids ? selectedItem.bids.length : 0}</span>
                   ) : (
                     <AuctionTimer 
                       expiryDate={selectedItem.expires_at} 
@@ -1570,6 +1587,44 @@ const handleConfirmReceipt = async (auctionId: number) => {
                 </p>
               </div>
             </div>
+
+            {/* ADDITIONAL SELLER INFO */}
+            {isSeller && !isClosed && (
+              <div className="bg-white p-4 rounded-[24px] border border-gray-50 shadow-sm mb-6">
+                <div className="flex justify-between items-center mb-3 border-b border-gray-50 pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-gray-100 p-1.5 rounded-lg text-gray-400">
+                      <Package size={14} />
+                    </div>
+                    <div>
+                      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Category</p>
+                      <p className="text-xs font-bold text-gray-900">{selectedItem.category}</p>
+                    </div>
+                  </div>
+                  <span className="px-2 py-1 bg-gray-100 rounded-full text-[9px] font-black text-gray-500 uppercase tracking-wider">
+                    {selectedItem.category}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-gray-100 p-1.5 rounded-lg text-gray-400">
+                      <Clock size={14} />
+                    </div>
+                    <div>
+                      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Time Remaining</p>
+                      <div className="text-xs font-black text-gray-900">
+                        <AuctionTimer 
+                          expiryDate={selectedItem.expires_at} 
+                          status={selectedItem.status}
+                          onEnd={() => handleAutoSettle(selectedItem.id, selectedItem.seller_id)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ACTION BUTTONS / POST-AUCTION VIEWS */}
             {isClosed ? (
@@ -1647,10 +1702,10 @@ const handleConfirmReceipt = async (auctionId: number) => {
             ) : isSeller ? (
               <button
                 onClick={handleCancelAuction}
-                disabled={loading}
+                disabled={isCancelling}
                 className="w-full py-6 rounded-[32px] border-2 border-red-100 text-red-500 font-black uppercase tracking-[0.2em] hover:bg-red-50 transition-all flex items-center justify-center gap-2"
               >
-                {loading ? <RefreshCcw className="animate-spin" size={18} /> : "Cancel Auction"}
+                {isCancelling ? <RefreshCcw className="animate-spin" size={18} /> : "Cancel Auction"}
               </button>
             ) : (
               <button

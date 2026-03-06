@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
 import { Camera, RefreshCcw, X, Plus } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import Swal from 'sweetalert2';
+import withReactContent from 'sweetalert2-react-content';
+
+const MySwal = withReactContent(Swal);
 
 interface StandardAuctionCreationProps {
   user: { username: string; uid: string } | null;
@@ -65,7 +70,7 @@ export const StandardAuctionCreation: React.FC<StandardAuctionCreationProps> = (
   const handleCreateListing = async () => {
     // 1. AUTH CHECK: Only let logged-in users proceed
     if (!user) {
-      alert("You must be logged in to publish an auction.");
+      toast.error("You must be logged in to publish an auction.");
       handleLogin(); // Trigger your login function
       return;
     }
@@ -77,7 +82,7 @@ export const StandardAuctionCreation: React.FC<StandardAuctionCreationProps> = (
 
     // 2. VALIDATION CHECK
     if (!newListing.title || !newListing.price) {
-      alert("Please fill in the title and price.");
+      toast.error("Please fill in the title and price.");
       return;
     }
 
@@ -99,12 +104,31 @@ export const StandardAuctionCreation: React.FC<StandardAuctionCreationProps> = (
       });
 
       if (res.ok) {
-        alert("Success! Your auction is live.");
+        MySwal.fire({
+          title: 'Success!',
+          text: 'Your auction is live.',
+          icon: 'success',
+          confirmButtonColor: '#22c55e',
+          confirmButtonText: 'Great!'
+        });
         setNewListing({ title: '', description: '', price: '', duration: '0.0833', images: ['', '', ''], category: 'General' });
         onAuctionCreated();
+      } else {
+        const err = await res.json();
+        console.error("Creation failed:", err);
+        MySwal.fire({
+          title: 'Error',
+          text: err.error || "Unknown error",
+          icon: 'error'
+        });
       }
     } catch (err) {
       console.error("Creation failed", err);
+      MySwal.fire({
+        title: 'Network Error',
+        text: "Failed to connect to server. Please try again.",
+        icon: 'error'
+      });
     } finally {
       setLoading(false);
     }

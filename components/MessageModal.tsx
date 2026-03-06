@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, RefreshCcw } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 interface Message {
   id: number;
@@ -84,10 +85,11 @@ export const MessageModal: React.FC<MessageModalProps> = ({
         setNewMessage('');
         fetchMessages(); // Refresh immediately
       } else {
-        alert("Failed to send message");
+        toast.error("Failed to send message");
       }
     } catch (error) {
       console.error("Send error:", error);
+      toast.error("Failed to send message");
     } finally {
       setSending(false);
     }

@@ -2,6 +2,11 @@
 import { useState, useEffect } from 'react'
 import { Upload, Sparkles, AlertTriangle, Loader2, CheckCircle } from 'lucide-react'
 import { AICreationAssistant } from './AICreationAssistant'
+import { toast } from 'react-hot-toast'
+import Swal from 'sweetalert2'
+import withReactContent from 'sweetalert2-react-content'
+
+const MySwal = withReactContent(Swal)
 
 interface AIAnalysisResult {
   fraud_detection?: {
@@ -161,14 +166,24 @@ export const EnhancedAuctionCreation: React.FC<EnhancedAuctionCreationProps> = (
               
               // Check for fraud
               if (aiResult.fraud_detection?.is_suspicious && aiResult.fraud_detection.confidence > 0.7) {
-                const userConfirmed = confirm(
-                  `⚠️ Potential Fraud Detected\n\n` +
-                  `${aiResult.fraud_detection.reasons.join(', ')}\n\n` +
-                  `Confidence: ${Math.round(aiResult.fraud_detection.confidence * 100)}%\n\n` +
-                  `Do you want to continue with this upload?`
-                )
+                const userConfirmed = await MySwal.fire({
+                  title: '⚠️ Potential Fraud Detected',
+                  html: `
+                    <p class="mb-4 text-left">Our AI has flagged this image for the following reasons:</p>
+                    <ul class="list-disc pl-5 text-left mb-4 text-red-600 font-bold">
+                      ${aiResult.fraud_detection.reasons.map((r: string) => `<li>${r}</li>`).join('')}
+                    </ul>
+                    <p class="text-sm text-gray-500">Confidence: ${Math.round(aiResult.fraud_detection.confidence * 100)}%</p>
+                  `,
+                  icon: 'warning',
+                  showCancelButton: true,
+                  confirmButtonColor: '#d33',
+                  cancelButtonColor: '#3085d6',
+                  confirmButtonText: 'Continue Anyway',
+                  cancelButtonText: 'Cancel Upload'
+                });
                 
-                if (!userConfirmed) {
+                if (!userConfirmed.isConfirmed) {
                   throw new Error('Upload cancelled by user due to fraud detection')
                 }
               }
@@ -213,14 +228,14 @@ export const EnhancedAuctionCreation: React.FC<EnhancedAuctionCreationProps> = (
 
       // Show success message
       if (aiEnabled && aiResults) {
-        alert(`✅ Upload complete! AI analysis results are available below.`)
+        toast.success(`Upload complete! AI analysis results are available below.`)
       } else {
-        alert(`✅ Upload complete! ${fileArray.length} image(s) uploaded successfully.`)
+        toast.success(`Upload complete! ${fileArray.length} image(s) uploaded successfully.`)
       }
 
     } catch (error) {
       console.error('Upload error:', error)
-      alert(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      toast.error(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setIsUploading(false)
       setUploadProgress(0)
@@ -232,12 +247,12 @@ export const EnhancedAuctionCreation: React.FC<EnhancedAuctionCreationProps> = (
     event.preventDefault()
     
     if (imageUrls.length === 0) {
-      alert('Please upload at least one image')
+      toast.error('Please upload at least one image')
       return
     }
 
     if (!formData.title || !formData.description) {
-      alert('Please fill in title and description')
+      toast.error('Please fill in title and description')
       return
     }
 
@@ -278,11 +293,21 @@ export const EnhancedAuctionCreation: React.FC<EnhancedAuctionCreationProps> = (
       setAiResults(null)
       setShowAIAssistant(false)
       
-      alert(`✅ Auction created successfully!`)
+      MySwal.fire({
+        title: 'Success!',
+        text: 'Your AI-Enhanced Auction is now live.',
+        icon: 'success',
+        confirmButtonText: 'View Inventory',
+        confirmButtonColor: '#22c55e'
+      })
 
     } catch (error) {
       console.error('Error creating auction:', error)
-      alert('Failed to create auction. Please try again.')
+      MySwal.fire({
+        title: 'Error',
+        text: 'Failed to create auction. Please try again.',
+        icon: 'error'
+      })
     }
   }
 

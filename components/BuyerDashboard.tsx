@@ -1,4 +1,9 @@
 import { useState } from 'react';
+import { toast } from 'react-hot-toast';
+import Swal from 'sweetalert2';
+import withReactContent from 'sweetalert2-react-content';
+
+const MySwal = withReactContent(Swal);
 
 interface WonItem {
   id: number;
@@ -11,25 +16,42 @@ export default function BuyerDashboard({ wonItems, buyerId }: { wonItems: WonIte
   const [loading, setLoading] = useState<number | null>(null);
 
   const handleConfirm = async (auctionId: number) => {
-    setLoading(auctionId);
-    try {
-      const res = await fetch('/api/auctions/confirm-receipt', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ auctionId, buyerId }),
-      });
+    MySwal.fire({
+      title: 'Confirm Receipt',
+      text: "Only confirm if you have received the item.",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#7c3aed',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes, I received it!'
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        setLoading(auctionId);
+        try {
+          const res = await fetch('/api/auctions/confirm-receipt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ auctionId, buyerId }),
+          });
 
-      if (res.ok) {
-        alert("Success! Pi released to seller. Trust Score updated.");
-        window.location.reload();
-      } else {
-        throw new Error("Payout failed.");
+          if (res.ok) {
+            MySwal.fire(
+              'Confirmed!',
+              'Pi has been released to the seller.',
+              'success'
+            ).then(() => {
+              window.location.reload();
+            });
+          } else {
+            throw new Error("Payout failed.");
+          }
+        } catch (err: any) {
+          MySwal.fire('Error', err.message || "An error occurred", 'error');
+        } finally {
+          setLoading(null);
+        }
       }
-    } catch (err) {
-      alert(err);
-    } finally {
-      setLoading(null);
-    }
+    });
   };
 
   return (
