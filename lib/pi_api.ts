@@ -21,8 +21,11 @@ export const PiAPI = {
      * Moves Pi from Buyer to Platform Wallet
      */
     settlePayment: async (paymentId: string) => {
-        // --- MOCK BYPASS ---
+        // --- MOCK BYPASS (development/testing only) ---
         if (paymentId.startsWith('pay_mock')) {
+            if (process.env.NODE_ENV === 'production') {
+                throw new Error('Mock payment settlement is disabled in production.');
+            }
             console.log(`🛠️ PiAPI: Simulating Settlement for Mock ID: ${paymentId}`);
             return { status: 'SETTLED', txid: `mock_settle_tx_${Math.random().toString(36).substring(7)}` };
         }
@@ -103,12 +106,15 @@ export const PiAPI = {
      * Moves Pi from Platform Wallet to Seller
      */
     submitPayout: async (uid: string, amount: number) => {
-        // --- MOCK BYPASS ---
+        // --- MOCK BYPASS (development/testing only) ---
         if (uid.includes('mock') || uid.includes('pioneer')) {
+            if (process.env.NODE_ENV === 'production') {
+                throw new Error('Mock payout is disabled in production.');
+            }
             console.log(`🛠️ PiAPI: Simulating Payout for Mock UID: ${uid}`);
-            return { 
-                status: 'COMPLETED', 
-                txid: `mock_payout_tx_${Math.random().toString(36).substring(7)}` 
+            return {
+                status: 'COMPLETED',
+                txid: `mock_payout_tx_${Math.random().toString(36).substring(7)}`
             };
         }
 

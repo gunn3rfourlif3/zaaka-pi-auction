@@ -1,102 +1,109 @@
+// Custom production server: Next.js (pages + API routes) + Socket.IO real-time.
+//
+// This is the production entry point (see `npm start` / PM2 ecosystem file).
+// It serves the whole Next app via Next's request handler AND hosts the
+// Socket.IO server plus the /api/emit-bid-update endpoint that the bid flow
+// calls to broadcast live updates.
+//
+// Configuration is entirely env-driven — no hardcoded paths or domains:
+//   PORT             port to listen on (default 3000)
+//   HOST             bind address (default 127.0.0.1 — Nginx proxies to it)
+//   ALLOWED_ORIGINS  comma-separated site origins allowed for Socket.IO CORS
+//   NODE_ENV         "production" on the VPS
+
 const express = require('express');
-const path = require('path');
 const http = require('http');
-const { Server } = require("socket.io");
 const next = require('next');
+const { Server } = require('socket.io');
 
 const dev = process.env.NODE_ENV !== 'production';
+const PORT = parseInt(process.env.PORT || '3000', 10);
+const HOST = process.env.HOST || '127.0.0.1';
+
+// Pi Network origins the embedded app connects from, plus your own site
+// origin(s) supplied via ALLOWED_ORIGINS (e.g. "https://auction.example.com").
+const PI_ORIGINS = [
+  'https://sandbox.minepi.com',
+  'https://app-cdn.minepi.com',
+  'https://app.minepi.com',
+];
+const siteOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const allowedOrigins = [...siteOrigins, ...PI_ORIGINS];
+
 const nextApp = next({ dev });
 const handle = nextApp.getRequestHandler();
 
-const PORT = 5500;
-
 nextApp.prepare().then(() => {
-    const app = express();
-    const server = http.createServer(app);
-    const io = new Server(server, {
-        cors: {
-            origin: ["*", "https://nondefinitely-fibrinogenic-talitha.ngrok-free.dev"],
-            methods: ["GET", "POST"],
-            credentials: true
-        },
-        serveClient: true, // Enable serving Socket.IO client
-        allowEIO3: true // Allow Engine.IO v3 for better compatibility
+  const app = express();
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+
+  const server = http.createServer(app);
+  const io = new Server(server, {
+    cors: {
+      origin: allowedOrigins.length ? allowedOrigins : true,
+      methods: ['GET', 'POST'],
+      credentials: true,
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    },
+    transports: ['websocket', 'polling'],
+    pingTimeout: 60000,
+    pingInterval: 25000,
+  });
+
+  // Expose io to API routes (used by the settlement service, etc.).
+  global.io = io;
+
+  io.on('connection', (socket) => {
+    console.log('🟢 Client connected:', socket.id);
+
+    socket.on('join_auction', (auctionId) => {
+      socket.join(`auction_${auctionId}`);
+      socket.emit('joined_auction', { auctionId, status: 'success' });
     });
 
-    // Make io accessible to our API routes
-    global.io = io;
-
-    io.on('connection', (socket) => {
-        console.log('🟢 Client connected:', socket.id);
-        console.log('   Origin:', socket.handshake.headers.origin);
-        console.log('   User-Agent:', socket.handshake.headers['user-agent']);
-
-        socket.on('join_auction', (auctionId) => {
-            socket.join(`auction_${auctionId}`);
-            console.log(`📡 Socket ${socket.id} joined auction_${auctionId}`);
-        });
-
-        socket.on('leave_auction', (auctionId) => {
-            socket.leave(`auction_${auctionId}`);
-            console.log(`📡 Socket ${socket.id} left auction_${auctionId}`);
-        });
-
-        socket.on('disconnect', () => {
-            console.log('🔴 Client disconnected:', socket.id);
-        });
+    socket.on('leave_auction', (auctionId) => {
+      socket.leave(`auction_${auctionId}`);
     });
 
-    // Add event emitter for bid updates
-    app.post('/api/emit-bid-update', (req, res) => {
-        const { auctionId, newBid, bidder } = req.body;
-        
-        console.log(`🎯 Server emitting bid_update: Auction ${auctionId}, Bid ${newBid} by ${bidder}`);
-        
-        // Emit to all connected clients (global broadcast)
-        io.emit('bid_update', { auctionId, newBid, bidder });
-        
-        // Also emit to specific auction room
-        io.to(`auction_${auctionId}`).emit('bid_update', { auctionId, newBid, bidder });
-        
-        res.json({ success: true, message: 'Bid update emitted' });
+    // Join a per-user room so the server can push notifications to this user.
+    socket.on('join_user', (username) => {
+      if (username) socket.join(`user_${username}`);
     });
 
-    // Add event emitter for auction finalization
-    app.post('/api/emit-auction-finalized', (req, res) => {
-        const { auctionId, finalPrice, winnerId, status } = req.body;
-        
-        console.log(`🏁 Server emitting auction_finalized: Auction ${auctionId} won by ${winnerId} for ${finalPrice}`);
-        
-        io.emit('auction_finalized', { auctionId, finalPrice, winnerId, status });
-        io.to(`auction_${auctionId}`).emit('auction_finalized', { auctionId, finalPrice, winnerId, status });
-        
-        res.json({ success: true, message: 'Auction finalized emitted' });
+    socket.on('disconnect', (reason) => {
+      console.log('🔴 Client disconnected:', socket.id, 'Reason:', reason);
     });
+  });
 
-    // Serve Socket.IO client before other routes
-    app.get('/socket.io/socket.io.js', (req, res) => {
-        res.sendFile(path.join(__dirname, 'node_modules/socket.io/client-dist/socket.io.js'));
-    });
+  // --- Custom real-time endpoints (must be registered BEFORE the Next handler) ---
+  app.post('/api/emit-bid-update', (req, res) => {
+    try {
+      const { auctionId, newBid, bidder } = req.body || {};
+      if (!auctionId || !newBid) return res.status(400).json({ error: 'Missing fields' });
+      io.to(`auction_${auctionId}`).emit('bid_update', {
+        auctionId: parseInt(auctionId, 10),
+        newBid: parseFloat(newBid),
+        bidder,
+        timestamp: Date.now(),
+      });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
 
-    // This middleware adds the skip-warning header to EVERY request
-    app.use((req, res, next) => {
-        res.setHeader('ngrok-skip-browser-warning', 'true');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('X-Frame-Options', 'ALLOWALL');
-        res.setHeader('Content-Security-Policy', "default-src * 'unsafe-inline' 'unsafe-eval'; frame-ancestors 'self' https://sandbox.minepi.com https://app-cdn.minepi.com https://*.minepi.com; img-src * data: blob:; font-src * data:; script-src * 'unsafe-inline' 'unsafe-eval' https://sdk.minepi.com https://app-cdn.minepi.com; connect-src * https://app-cdn.minepi.com ws: wss:;");
-        next();
-    });
+  app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', socketIO: true, timestamp: Date.now() });
+  });
 
-    // Handle all other requests with Next.js
-    app.all('*', (req, res) => {
-        return handle(req, res);
-    });
+  // --- Everything else (pages + all other API routes) is handled by Next.js ---
+  app.all('*', (req, res) => handle(req, res));
 
-    server.listen(PORT, (err) => {
-        if (err) throw err;
-        console.log(`
-        ✅ Server is running on http://localhost:${PORT}
-        WebSocket enabled 🟢
-        `);
-    });
+  server.listen(PORT, HOST, () => {
+    console.log(`🚀 Pi Auctions server live on http://${HOST}:${PORT} (dev=${dev})`);
+  });
 });

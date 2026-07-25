@@ -1,9 +1,9 @@
 import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
+import { prisma as prismaInstance } from '../lib/prisma';
 import { PiAPI } from '../lib/pi_api';
-
-// No adapter needed for standard MySQL connection
-const prismaInstance = new PrismaClient();
+import { notify } from '../lib/notifications';
+import { audit } from '../lib/audit';
 
 export async function processAuctionEscrow(auctionId: number, prisma: PrismaClient = prismaInstance) {
   return await prisma.$transaction(async (tx) => {
@@ -66,9 +66,21 @@ export async function processAuctionEscrow(auctionId: number, prisma: PrismaClie
       }
     });
 
+    // 3b. Audit (atomic with settlement) + notify both parties (best-effort).
+    await audit({
+      eventType: 'SETTLE',
+      actor: bid.bidder_id,
+      auctionId: auction.id,
+      amount: Number(bid.amount),
+      piPaymentId: bid.pi_payment_id || null,
+      meta: { seller: auction.seller_id },
+    }, tx);
+    notify(bid.bidder_id, 'WON', `You won auction #${auction.id} for ${Number(bid.amount)} π!`, auction.id);
+    notify(auction.seller_id, 'SOLD', `Your auction #${auction.id} sold for ${Number(bid.amount)} π.`, auction.id);
+
     // 4. Mark Auction as Closed/Paid (ALREADY DONE ABOVE)
     // Removed redundant update
-    
+
     // 5. Emit Finalized Event
     if (global.io) {
         global.io.emit('auction_finalized', {

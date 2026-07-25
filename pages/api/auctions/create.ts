@@ -1,35 +1,46 @@
 import { prisma } from "../../../lib/prisma";
+import { requireAuth } from "../../../lib/auth";
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  // 1. Log the body to your terminal to debug
-  console.log("Incoming Request Body:", req.body);
+  // Only authenticated Pi users may create auctions.
+  const session = requireAuth(req, res);
+  if (!session) return;
 
   try {
-    const { title, description, price, category, sellerId, imageUrls, expiresAt } = req.body;
+    const { title, description, price, category, imageUrls, expiresAt } = req.body;
 
-    // 2. Ensure price is a valid number
+    // --- Validation ---
+    if (!title || typeof title !== "string" || title.trim().length < 3 || title.length > 255) {
+      return res.status(400).json({ error: "Title must be between 3 and 255 characters." });
+    }
     const parsedPrice = parseFloat(price);
-    if (isNaN(parsedPrice)) {
+    if (isNaN(parsedPrice) || parsedPrice < 0) {
       return res.status(400).json({ error: "Invalid price value received." });
     }
+    const expiry = new Date(expiresAt);
+    if (isNaN(expiry.getTime()) || expiry.getTime() <= Date.now()) {
+      return res.status(400).json({ error: "Expiry must be a valid future date." });
+    }
+    const images: string[] = Array.isArray(imageUrls)
+      ? imageUrls.filter((u) => typeof u === "string")
+      : [];
 
     const auction = await prisma.auctions.create({
       data: {
-        title: title,
-        description: description || "",
+        title: title.trim(),
+        description: typeof description === "string" ? description : "",
         category: category || "General",
-        currentBid: parsedPrice, // This must be a number
-        seller_id: sellerId,
+        currentBid: parsedPrice,
+        // Seller identity comes from the verified session, never the request body.
+        seller_id: session.username,
         status: "OPEN",
-        expires_at: new Date(expiresAt),
+        expires_at: expiry,
         images: {
-          create: imageUrls.map((url: string) => ({
-            url: url
-          }))
-        }
-      }
+          create: images.map((url: string) => ({ url })),
+        },
+      },
     });
 
     return res.status(200).json(auction);

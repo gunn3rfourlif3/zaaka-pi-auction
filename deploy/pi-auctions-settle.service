@@ -1,0 +1,20 @@
+# systemd service that triggers auction settlement via the protected endpoint.
+# Paired with pi-auctions-settle.timer. Install to /etc/systemd/system/.
+#
+# This is a secure alternative to the PM2 "pi-auctions-worker" process: instead
+# of a long-running node-cron worker, systemd invokes the CRON_SECRET-protected
+# HTTP endpoint on a schedule.
+#
+#   Enable: systemctl daemon-reload && systemctl enable --now pi-auctions-settle.timer
+
+[Unit]
+Description=Pi Auctions - settle expired auctions
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/pi-auctions.env
+# Calls the local app; CRON_SECRET must match the app's env.
+ExecStart=/usr/bin/curl -fsS -X POST \
+  -H "Authorization: Bearer ${CRON_SECRET}" \
+  http://127.0.0.1:3000/api/cron/settle-expired

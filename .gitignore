@@ -1,2 +1,22 @@
 node_modules
+
+# Environment / secrets — never commit real values
 .env
+.env.local
+.env.*.local
+.env.production
+.env.docker
+*.env
+
+# Build output
+.next
+out
+dist
+tsconfig.tsbuildinfo
+
+# Logs
+*.log
+logs
+
+# OS / editor
+.DS_Store

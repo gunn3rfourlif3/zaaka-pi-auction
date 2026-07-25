@@ -1,5 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { PiAPI } from '../lib/pi_api';
+import { notify } from '../lib/notifications';
+import { audit } from '../lib/audit';
 
 /**
  * ZAAKA PAYOUT LOGIC
@@ -45,10 +47,21 @@ export async function confirmDeliveryAndPayout(auctionId: number, buyerId: strin
       });
 
       console.log(`✅ Payout Successful. TXID: ${payout.txid}`);
-      
-      return { 
-        success: true, 
-        txid: payout.txid 
+
+      // Audit (atomic) + notify the seller their funds were released.
+      await audit({
+        eventType: 'PAYOUT',
+        actor: buyerId,
+        auctionId,
+        amount: Number(escrowEntry.amount),
+        piPaymentId: escrowEntry.pi_payment_id || null,
+        meta: { seller: escrowEntry.auctions.seller_id, txid: payout.txid },
+      }, tx);
+      notify(escrowEntry.auctions.seller_id, 'PAYOUT', `Funds for auction #${auctionId} (${Number(escrowEntry.amount)} π) have been released to you.`, auctionId);
+
+      return {
+        success: true,
+        txid: payout.txid
       };
 
     }, {

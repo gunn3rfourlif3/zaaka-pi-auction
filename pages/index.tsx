@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Head from 'next/head';
 import { MessageModal } from '../components/MessageModal';
+import { NotificationBell } from '../components/NotificationBell';
+import { UserRating } from '../components/UserRating';
+import { LeaveReviewModal } from '../components/LeaveReviewModal';
 import { useEnhancedWebSocketConnection } from '../hooks/useEnhancedWebSocketConnection';
 import { EnhancedAuctionCreation } from '../components/EnhancedAuctionCreation';
 import dynamic from 'next/dynamic';
@@ -184,6 +187,8 @@ const [watchlist, setWatchlist] = useState<number[]>([]);
     otherUsername: string;
     itemTitle: string;
   } | null>(null);
+  // Auction id currently being reviewed (Phase 5: ratings).
+  const [reviewAuctionId, setReviewAuctionId] = useState<number | null>(null);
 
   // --- Real-time Bid Updates (Multi-layered Fallback System) ---
   const handleBidUpdate = useCallback((data: { auctionId: number, newBid: number, bidder: string }) => {
@@ -610,7 +615,7 @@ const getTimeRemaining = (expiryDate: string) => {
         setTimeout(async () => {
           try {
             console.log("[Pi Handshake] Authenticating...");
-            await Pi.authenticate(['username', 'payments'], async (payment: any) => {
+            const auth = await Pi.authenticate(['username', 'payments'], async (payment: any) => {
               console.log("[Pi Handshake] Authenticated. Checking for incomplete payments...");
               try {
                 const res = await fetch('/api/payments/incomplete', {
@@ -632,6 +637,20 @@ const getTimeRemaining = (expiryDate: string) => {
                 console.error("[Pi Handshake] Incomplete payment recovery failed:", err);
               }
             });
+
+            // Establish a verified server session on auto-login too.
+            try {
+              if (auth?.accessToken) {
+                await fetch('/api/auth/pi-login', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ accessToken: auth.accessToken }),
+                });
+              }
+            } catch (e) {
+              console.error("Session establishment failed:", e);
+            }
+            if (auth?.user) setUser(auth.user);
           } catch (authErr: any) {
             console.error("❌ [Pi Handshake] Authentication Error:", authErr.message || authErr);
           }
@@ -706,6 +725,21 @@ const getTimeRemaining = (expiryDate: string) => {
         }
       });
 
+      // Establish a verified server session from the Pi access token.
+      // The server re-verifies this token against the Pi API, so identity
+      // cannot be spoofed by the client.
+      try {
+        if (auth?.accessToken) {
+          await fetch('/api/auth/pi-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accessToken: auth.accessToken }),
+          });
+        }
+      } catch (e) {
+        console.error("Session establishment failed:", e);
+      }
+
       setUser(auth.user);
     } catch (err: any) {
       console.error("SDK Error:", err);
@@ -725,6 +759,8 @@ const getTimeRemaining = (expiryDate: string) => {
       confirmButtonText: 'Yes, logout!'
     }).then((result) => {
       if (result.isConfirmed) {
+        // Clear the server-side session cookie as well.
+        fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
         setUser(null);
         setView('market');
         MySwal.fire(
@@ -778,8 +814,8 @@ const getTimeRemaining = (expiryDate: string) => {
 
     setIsPaying(true);
 
-    // --- MOCK USER BYPASS ---
-    if (user.uid.startsWith('mock_')) {
+    // --- MOCK USER BYPASS (development/testing only) ---
+    if (process.env.NODE_ENV !== 'production' && user.uid.startsWith('mock_')) {
       // Use 'pay_mock_' prefix to match lib/pi_api.ts logic
       const mockPaymentId = `pay_mock_${Date.now()}`;
       const mockTxid = `mock_tx_${Date.now()}`;
@@ -1134,13 +1170,20 @@ const handleConfirmReceipt = async (auctionId: number) => {
 
               </h1>
 
-              <div className="relative bg-gray-100 p-3 rounded-2xl text-gray-400">
+              {user ? (
 
-                <Bell size={20} />
+                <div className="bg-gray-100 rounded-2xl text-gray-600">
+                  <NotificationBell />
+                </div>
 
-                <span className="absolute top-3.5 right-3.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+              ) : (
 
-              </div>
+                <div className="relative bg-gray-100 p-3 rounded-2xl text-gray-400">
+                  <Bell size={20} />
+                  <span className="absolute top-3.5 right-3.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+                </div>
+
+              )}
 
             </div>
 
@@ -1543,6 +1586,16 @@ const handleConfirmReceipt = async (auctionId: number) => {
             )}
 
             <h2 className="text-3xl font-black italic uppercase tracking-tighter mb-2">{selectedItem.title}</h2>
+
+            {/* Seller identity + reputation */}
+            {!isSeller && selectedItem.seller_id && (
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xs font-bold text-gray-500">Sold by @{selectedItem.seller_id}</span>
+                <span className="text-gray-300">·</span>
+                <UserRating userId={selectedItem.seller_id} />
+              </div>
+            )}
+
             <p className="text-gray-500 leading-relaxed mb-8 text-sm">{selectedItem.description || "No description provided."}</p>
 
             {/* STATS GRID */}
@@ -1654,6 +1707,14 @@ const handleConfirmReceipt = async (auctionId: number) => {
                           {loading ? <RefreshCcw className="animate-spin" size={14} /> : (selectedItem.delivered ? "Received" : <><Check size={14} /> Confirm Receipt</>)}
                         </button>
                       </div>
+
+                      {/* Rate the seller */}
+                      <button
+                        onClick={() => setReviewAuctionId(selectedItem.id)}
+                        className="mt-3 w-full bg-white text-yellow-600 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2 border border-yellow-100 shadow-sm active:scale-95 transition-all"
+                      >
+                        <Trophy size={14} /> Rate the Seller
+                      </button>
                     </div>
                     {/* Decorative Background Elements */}
                     <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-yellow-200/20 rounded-full blur-3xl"></div>
@@ -1672,11 +1733,18 @@ const handleConfirmReceipt = async (auctionId: number) => {
                         <p className="text-lg font-black text-blue-400 italic">@{winningBid?.bidder_id || "Unknown"}</p>
                       </div>
 
-                      <button 
+                      <button
                         onClick={() => handleOpenChat(selectedItem.id, winningBid?.bidder_id, winningBid?.bidder_id, selectedItem.title)}
                         className="w-full bg-white text-black py-5 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 active:scale-95 transition-all"
                       >
                         <MessageSquare size={16} /> Message Winner
+                      </button>
+
+                      <button
+                        onClick={() => setReviewAuctionId(selectedItem.id)}
+                        className="w-full mt-3 bg-white/10 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-2 border border-white/10 active:scale-95 transition-all"
+                      >
+                        <Trophy size={16} /> Rate the Buyer
                       </button>
                     </div>
                   </div>
@@ -1783,6 +1851,14 @@ const handleConfirmReceipt = async (auctionId: number) => {
           itemTitle={chatConfig.itemTitle}
           auctionSellerId={selectedItem?.seller_id}
           winningBidderId={selectedItem?.bids?.[0]?.bidder_id}
+        />
+      )}
+
+      {/* LEAVE REVIEW MODAL */}
+      {reviewAuctionId !== null && (
+        <LeaveReviewModal
+          auctionId={reviewAuctionId}
+          onClose={() => setReviewAuctionId(null)}
         />
       )}
 

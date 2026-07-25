@@ -1,0 +1,17 @@
+# Runs the settlement service every minute so auctions close promptly on expiry.
+# Install to /etc/systemd/system/ alongside pi-auctions-settle.service.
+#
+#   systemctl daemon-reload
+#   systemctl enable --now pi-auctions-settle.timer
+#   systemctl list-timers | grep pi-auctions
+
+[Unit]
+Description=Run Pi Auctions settlement every minute
+
+[Timer]
+OnCalendar=*:0/1
+Persistent=true
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

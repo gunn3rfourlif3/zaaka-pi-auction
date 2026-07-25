@@ -2,8 +2,12 @@ import { prisma } from "../../../lib/prisma";
 import { processAuctionEscrow } from "../../../services/settlement_service";
 
 export default async function handler(req: any, res: any) {
-  // Simple security check (optional: use a secret header)
-  // if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) ...
+  // Require a shared secret so only the scheduler (cron / systemd timer) can
+  // trigger settlement. Configure CRON_SECRET and send it as a Bearer token.
+  const secret = process.env.CRON_SECRET;
+  if (!secret || req.headers.authorization !== `Bearer ${secret}`) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
 
   try {
     // 1. Find all auctions that passed their expiry but are still OPEN

@@ -1,6 +1,9 @@
 generator client {
-  provider   = "prisma-client-js"
-  engineType = "binary"
+  provider      = "prisma-client-js"
+  engineType    = "binary"
+  // "native" covers local dev; the debian target matches the Docker image
+  // (node:20-bookworm-slim) so the client works both places.
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -29,6 +32,7 @@ model auctions {
   bids          bids[]
   messages      messages[]
   auto_bids     auto_bids[]
+  reviews       reviews[]
 }
 
 model auction_images {
@@ -44,10 +48,14 @@ model bids {
   id            Int      @id @default(autoincrement())
   amount        Decimal  @db.Decimal(10, 2)
   bidder_id     String
-  pi_payment_id String?  @db.VarChar(255)
+  // Unique so a replayed Pi callback cannot record the same payment twice.
+  // (MySQL allows multiple NULLs, so mock/no-payment rows are unaffected.)
+  pi_payment_id String?  @unique @db.VarChar(255)
   auctionId     Int
   auction       auctions @relation(fields: [auctionId], references: [id])
   created_at    DateTime @default(now())
+
+  @@index([auctionId])
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
@@ -93,4 +101,52 @@ model auto_bids {
   auction       auctions @relation(fields: [auction_id], references: [id], onDelete: Cascade)
 
   @@index([auction_id])
+}
+
+/// Buyer/seller reviews left after a completed auction (Phase 5: ratings).
+model reviews {
+  id         Int      @id @default(autoincrement())
+  auction_id Int
+  rater_id   String   @db.VarChar(255) // who wrote the review
+  ratee_id   String   @db.VarChar(255) // who is being reviewed
+  role       String   @db.VarChar(20)  // the ratee's role: 'SELLER' or 'BUYER'
+  stars      Int // 1..5
+  comment    String?  @db.Text
+  created_at DateTime @default(now())
+
+  auction auctions @relation(fields: [auction_id], references: [id], onDelete: Cascade)
+
+  // One review per counterpart per auction.
+  @@unique([auction_id, rater_id, ratee_id])
+  @@index([ratee_id])
+  @@index([auction_id])
+}
+
+/// In-app notifications (Phase 5). user_id matches the username used on bids/escrow.
+model notifications {
+  id         Int      @id @default(autoincrement())
+  user_id    String   @db.VarChar(255)
+  type       String   @db.VarChar(50) // OUTBID, WON, SOLD, PAYOUT, DELIVERY
+  message    String   @db.Text
+  auction_id Int?
+  read       Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  @@index([user_id])
+  @@index([read])
+}
+
+/// Immutable audit trail of money-affecting events (Phase 5).
+model audit_log {
+  id            Int      @id @default(autoincrement())
+  event_type    String   @db.VarChar(50) // BID, SETTLE, PAYOUT, CONFIRM, REFUND
+  actor         String?  @db.VarChar(255)
+  auction_id    Int?
+  amount        Decimal? @db.Decimal(10, 2)
+  pi_payment_id String?  @db.VarChar(255)
+  meta          String?  @db.Text // JSON blob
+  created_at    DateTime @default(now())
+
+  @@index([auction_id])
+  @@index([event_type])
 }

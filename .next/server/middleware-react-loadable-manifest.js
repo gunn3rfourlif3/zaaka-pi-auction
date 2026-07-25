@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{\"pages\\\\index.tsx -> ../components/StandardAuctionCreation\":{\"id\":\"pages\\\\index.tsx -> ../components/StandardAuctionCreation\",\"files\":[\"static/chunks/components_StandardAuctionCreation_tsx.js\"]}}"
+self.__REACT_LOADABLE_MANIFEST='{"pages\\\\index.tsx -> ../components/StandardAuctionCreation":{"id":9118,"files":["static/chunks/118.22197b1cc4b26d03.js"]}}';

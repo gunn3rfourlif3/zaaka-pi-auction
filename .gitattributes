@@ -1,0 +1,20 @@
+# Normalize line endings: store everything as LF in the repo.
+# After adding this file, run once:  git add --renormalize .  &&  git commit
+* text=auto eol=lf
+
+# Shell scripts must stay LF even on Windows checkouts.
+*.sh text eol=lf
+
+# Explicitly mark common binaries so git never touches them.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.pptx binary
+*.woff binary
+*.woff2 binary
+*.ttf binary

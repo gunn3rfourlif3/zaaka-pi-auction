@@ -1,0 +1,96 @@
+# ============================================================================
+# Pi Auctions — Docker Compose stack
+#   docker compose --env-file .env.docker up -d --build
+#
+# Services:
+#   db      MySQL 8 (persistent volume)
+#   app     Next.js + Socket.IO custom server (port published to localhost only)
+#   worker  node-cron settlement worker (settles expired auctions)
+#
+# Optional profiles:
+#   redis   shared cache/real-time backing   →  --profile redis
+#   edge    containerized Nginx + TLS         →  --profile edge
+#
+# TLS: simplest is to run Nginx on the host (deploy/nginx.conf) proxying to the
+# published 127.0.0.1:3000. Use the `edge` profile only if you want Nginx in a
+# container too (requires certs mounted from the host).
+# ============================================================================
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    # Not published to the host — only reachable by other services.
+    expose:
+      - "3306"
+
+  app:
+    build: .
+    image: pi-auctions:local
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env.docker
+    environment:
+      # Assembled from the DB credentials in .env.docker; overrides any value there.
+      DATABASE_URL: "mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}"
+      HOST: "0.0.0.0"
+      PORT: "3000"
+    ports:
+      # Bind to localhost only; Nginx (host or edge profile) terminates TLS.
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - uploads:/app/public/uploads
+
+  worker:
+    image: pi-auctions:local
+    depends_on:
+      app:
+        condition: service_started
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    env_file: .env.docker
+    environment:
+      DATABASE_URL: "mysql://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}"
+    # Skip the migrate/server entrypoint; just run the settlement worker.
+    entrypoint: ["npm", "run", "worker"]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    profiles: ["redis"]
+    volumes:
+      - redis_data:/data
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    profiles: ["edge"]
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./deploy/docker/certbot-www:/var/www/certbot
+
+volumes:
+  db_data:
+  uploads:
+  redis_data:

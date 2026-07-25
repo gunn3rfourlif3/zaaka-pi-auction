@@ -1,9 +1,1 @@
-{
-  "/_app": "pages/_app.js",
-  "/_error": "pages/_error.js",
-  "/_document": "pages/_document.js",
-  "/api/http-poll": "pages/api/http-poll.js",
-  "/api/auctions/live": "pages/api/auctions/live.js",
-  "/api/auctions/status": "pages/api/auctions/status.js",
-  "/": "pages/index.js"
-}
+{"/_app":"pages/_app.js","/api/auctions/bid-check":"pages/api/auctions/bid-check.js","/api/auctions/[id]":"pages/api/auctions/[id].js","/api/auctions/confirm-receipt":"pages/api/auctions/confirm-receipt.js","/api/auctions/live":"pages/api/auctions/live.js","/api/auctions/receipt":"pages/api/auctions/receipt.js","/api/http-poll":"pages/api/http-poll.js","/api/auctions/settle":"pages/api/auctions/settle.js","/api/cron/settle-expired":"pages/api/cron/settle-expired.js","/api/auctions/status":"pages/api/auctions/status.js","/api/payments/complete":"pages/api/payments/complete.js","/api/messages/send":"pages/api/messages/send.js","/api/payments/approve":"pages/api/payments/approve.js","/api/messages/list":"pages/api/messages/list.js","/api/payments/incomplete":"pages/api/payments/incomplete.js","/api/upload":"pages/api/upload.js","/api/seller/items":"pages/api/seller/items.js","/_error":"pages/_error.js","/auction/[id]":"pages/auction/[id].html","/":"pages/index.html","/api/auctions/create":"pages/api/auctions/create.js","/_document":"pages/_document.js","/404":"pages/404.html"}
