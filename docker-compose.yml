@@ -56,6 +56,7 @@ services:
       - uploads:/app/public/uploads
 
   worker:
+    build: .
     image: pi-auctions:local
     depends_on:
       app:

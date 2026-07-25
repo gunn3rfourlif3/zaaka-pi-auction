@@ -80,7 +80,7 @@ export function NotificationBell({ pollMs = 30000 }: { pollMs?: number }) {
         <div className="absolute right-0 z-50 mt-2 max-h-96 w-80 overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-lg">
           <div className="border-b px-4 py-2 text-sm font-semibold text-gray-700">Notifications</div>
           {items.length === 0 ? (
-            <div className="px-4 py-6 text-center text-sm text-gray-400">You're all caught up.</div>
+            <div className="px-4 py-6 text-center text-sm text-gray-400">No new notifications.</div>
           ) : (
             items.map((n) => (
               <div key={n.id} className={`px-4 py-3 text-sm ${n.read ? 'text-gray-500' : 'bg-green-50 text-gray-800'}`}>

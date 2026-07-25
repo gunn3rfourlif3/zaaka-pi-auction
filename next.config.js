@@ -35,6 +35,8 @@ const nextConfig = {
   // Runs behind a custom server (server.js) under PM2, so no 'standalone' output.
   distDir: '.next',
   poweredByHeader: false,
+  // Don't fail production builds on lint warnings/errors — CI runs lint separately.
+  eslint: { ignoreDuringBuilds: true },
   async headers() {
     return [
       {
